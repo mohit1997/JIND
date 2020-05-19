@@ -205,6 +205,8 @@ class scRNALib:
 		else:
 			model = self.model.to(device)
 
+		model.eval()
+
 		y_pred, y_true = [], []
 		with torch.no_grad():
 			for sample in test_loader:
@@ -341,7 +343,7 @@ class scRNALib:
 		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1).fit_transform(reduced_feats)
 		return embeddings
 
-	def remove_effect(self, train_gene_mat, test_gene_mat, config):
+	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
 		features_batch1 = train_gene_mat.values
 		features_batch2 = test_gene_mat.values
 		if self.preprocessed:
@@ -379,16 +381,22 @@ class scRNALib:
 
 
 		model1 = self.model.to(device)
+		for param in model1.parameters():
+			param.requires_grad = False
 		# Define new model
 		model_copy = Classifier(features_batch1.shape[1], 256, MODEL_WIDTH, self.n_classes).to(device)
 		# Intialize it with the same parameter values as trained model
 		model_copy.load_state_dict(model1.state_dict())
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], 256, 256).to(device)
+		for param in model_copy.parameters():
+			param.requires_grad = False
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], 256, 128).to(device)
 
 		disc = Discriminator(256).to(device)
 
-		optimizer_G = torch.optim.Adam(model2.parameters(), lr=1e-4)
-		optimizer_D = torch.optim.Adam(disc.parameters(), lr=5e-4)
+		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
+		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=3e-4)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
 		adversarial_loss = torch.nn.BCELoss()
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -407,7 +415,7 @@ class scRNALib:
 				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
 
 
-				for i in range(3):
+				for i in range(1):
 					ind = np.random.randint(0, (len(features_batch2)), bs)
 					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
 					optimizer_G.zero_grad()
@@ -419,7 +427,7 @@ class scRNALib:
 					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
 					c2 += len(batch2_code)
 
-				if s2 < 0.6:
+				if s2 < 0.8:
 					optimizer_D.zero_grad()
 					batch1_code = model1.get_repr(sample['x'].to(device))
 					real_loss = adversarial_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
@@ -432,20 +440,21 @@ class scRNALib:
 					c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
+			if (s2 < 0.73) and (s1 < 0.73):
+				self.test_model = model2
+				torch.save(model2.state_dict(), self.path+"/best_br.pth")
+				if test_labels is not None:
+					print("Evaluating....")
+					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 
+		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
 		self.test_model = model2
-
-
-
-
-
-
 
 
 
 def main():
 	import pickle
-	with open('data/pancreas_integrated.pkl', 'rb') as f:
+	with open('data/pancreas_annotatedbatched.pkl', 'rb') as f:
 		data = pickle.load(f)
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)

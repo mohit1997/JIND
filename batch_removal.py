@@ -13,7 +13,7 @@ from scRNALib import scRNALib
 
 def main():
 	import pickle
-	with open('data/pancreas_integrated.pkl', 'rb') as f:
+	with open('data/pancreas_annotatedbatched.pkl', 'rb') as f:
 		data = pickle.load(f)
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
@@ -50,11 +50,11 @@ def main():
 	with open('pancreas_results/scRNALib_obj.pkl', 'rb') as f:
 		obj = pickle.load(f)
 
-	train_config = {'seed': 0, 'batch_size': 64, 'cuda': False,
-					'epochs': 15}
+	train_config = {'seed': 0, 'batch_size': 256, 'cuda': False,
+					'epochs': 10}
 
 	torch.set_num_threads(25)
-	obj.remove_effect(train_gene_mat, test_gene_mat, train_config)
+	obj.remove_effect(train_gene_mat, test_gene_mat, train_config, test_labels)
 	obj.raw_features = None
 	obj.reduced_features = None
 	with open('pancreas_results/scRNALib_objbr.pkl', 'wb') as f:
