@@ -263,7 +263,9 @@ class scRNALib:
 		preds = self.filter_pred(y_pred, frac)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
-		print('Test Acc Pre {:.4f} Post {:4f}'.format(pretest_acc, test_acc))
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
 			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
@@ -288,7 +290,9 @@ class scRNALib:
 		preds = self.filter_pred(y_pred, frac)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
-		print('Test Acc Pre {:.4f} Post {:4f}'.format(pretest_acc, test_acc))
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
 			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
@@ -440,7 +444,7 @@ class scRNALib:
 					c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.73) and (s1 < 0.73):
+			if (s2 < 0.74) and (s1 < 0.74):
 				self.test_model = model2
 				torch.save(model2.state_dict(), self.path+"/best_br.pth")
 				if test_labels is not None:
