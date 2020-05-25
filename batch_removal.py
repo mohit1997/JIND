@@ -24,7 +24,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	test_data = data[data['batch'].isin(batches[2:3])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -50,8 +50,8 @@ def main():
 	with open('pancreas_results/scRNALib_obj.pkl', 'rb') as f:
 		obj = pickle.load(f)
 
-	train_config = {'seed': 0, 'batch_size': 256, 'cuda': False,
-					'epochs': 10}
+	train_config = {'seed': 0, 'batch_size': 64, 'cuda': False,
+					'epochs': 8}
 
 	torch.set_num_threads(25)
 	obj.remove_effect(train_gene_mat, test_gene_mat, train_config, test_labels)

@@ -10,10 +10,12 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 class scRNALib:
-	global MODEL_WIDTH
+	global MODEL_WIDTH, LDIM
 	MODEL_WIDTH = 1500
+	LDIM = 256
 
 	def __init__(self, gene_mat, cell_labels, path):
 		self.class2num = None
@@ -43,6 +45,7 @@ class scRNALib:
 
 		self.labels = np.array([class2num[i] for i in cell_labels])
 		self.val_stats = None
+		self.scaler = None
 
 	def preprocess(self):
 		print('Applying log transformation ...')
@@ -67,6 +70,12 @@ class scRNALib:
 			self.reduced_features = self.raw_features[:, self.variances]
 			if save_as is not None:
 				np.save('{}_{}'.format(save_as, method), self.reduced_features)
+
+	def normalize(self):
+		scaler = MinMaxScaler((0, 1))
+		self.reduced_features = scaler.fit_transform(self.reduced_features)
+		self.scaler = scaler
+
 
 	def train_classifier(self, use_red, config, cmat=True):
 		if use_red:
@@ -109,7 +118,7 @@ class scRNALib:
 
 		criterion = torch.nn.NLLLoss(weight=class_weights)
 
-		model = Classifier(X_train.shape[1], 256, MODEL_WIDTH, n_classes).to(device)
+		model = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, n_classes).to(device)
 		optimizer = optim.Adam(model.parameters(), lr=1e-3)
 		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, threshold=0.01, verbose=True)
 
@@ -189,6 +198,8 @@ class scRNALib:
 				features = features[:, self.variances]
 			elif self.reduce_method == "PCA":
 				features = self.pca.transform(features)
+		if self.scaler is not None:
+			features = self.scaler.transform(features)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -360,6 +371,9 @@ class scRNALib:
 			elif self.reduce_method == "PCA":
 				features_batch1 = self.pca.transform(features_batch1)
 				features_batch2 = self.pca.transform(features_batch2)
+		if self.scaler is not None:
+			features_batch1 = self.scaler.transform(features_batch1)
+			features_batch2 = self.scaler.transform(features_batch2)
 		
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
@@ -388,14 +402,14 @@ class scRNALib:
 		for param in model1.parameters():
 			param.requires_grad = False
 		# Define new model
-		model_copy = Classifier(features_batch1.shape[1], 256, MODEL_WIDTH, self.n_classes).to(device)
+		model_copy = Classifier(features_batch1.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
 		# Intialize it with the same parameter values as trained model
 		model_copy.load_state_dict(model1.state_dict())
 		for param in model_copy.parameters():
 			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], 256, 128).to(device)
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 64).to(device)
 
-		disc = Discriminator(256).to(device)
+		disc = Discriminator(LDIM).to(device)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
@@ -444,7 +458,7 @@ class scRNALib:
 					c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.74) and (s1 < 0.74):
+			if (s2 < 0.77) and (s1 < 0.77):
 				self.test_model = model2
 				torch.save(model2.state_dict(), self.path+"/best_br.pth")
 				if test_labels is not None:
@@ -469,7 +483,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	test_data = data[data['batch'].isin(batches[2:3])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -495,6 +509,7 @@ def main():
 	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
 	# obj.preprocess()
 	obj.dim_reduction(5000, 'Var')
+	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
 					'epochs': 10}

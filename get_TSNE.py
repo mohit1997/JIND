@@ -24,7 +24,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	test_data = data[data['batch'].isin(batches[2:3])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -52,7 +52,7 @@ def main():
 
 	encoding1 = obj.get_encoding(train_gene_mat)
 
-	encoding2 = obj.get_encoding(test_gene_mat, test=False)
+	encoding2 = obj.get_encoding(test_gene_mat, test=True)
 	embedding = obj.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
 
 	embedding1 = embedding[:len(encoding1)]
