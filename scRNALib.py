@@ -413,7 +413,7 @@ class scRNALib:
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=3e-4)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=2e-4)
 		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
 		adversarial_loss = torch.nn.BCELoss()
 
@@ -423,7 +423,7 @@ class scRNALib:
 		for epoch in range(config['epochs']):
 			pBar = tqdm(batch1_loader)
 			model1.eval()
-			model2.eval()
+			model2.train()
 			disc.train()
 			c1, s1 = 0, 0
 			c2, s2 = 0, 0
@@ -439,23 +439,33 @@ class scRNALib:
 					optimizer_G.zero_grad()
 
 					batch2_code = model2.get_repr(batch2_inps)
-					g_loss = adversarial_loss(disc(batch2_code), valid)
+					# g_loss = adversarial_loss(disc(batch2_code), valid)
+					g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
 					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
 					c2 += len(batch2_code)
 
 				if s2 < 0.8:
-					optimizer_D.zero_grad()
-					batch1_code = model1.get_repr(sample['x'].to(device))
-					real_loss = adversarial_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
-					fake_loss = adversarial_loss(disc(batch2_code.detach()), fake)
-					d_loss = 0.5 * (real_loss + fake_loss)
+					for i in range(4):
+						if i != 0:
+							ind = np.random.randint(0, (len(features_batch2)), bs)
+							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+							batch2_code = model2.get_repr(batch2_inps)
+						optimizer_D.zero_grad()
+						batch1_code = model1.get_repr(sample['x'].to(device))
+						# real_loss = adversarial_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
+						# fake_loss = adversarial_loss(disc(batch2_code.detach()), fake)
+						real_loss = -torch.mean(disc(batch1_code))
+						fake_loss = torch.mean(disc(batch2_code.detach()))
+						d_loss = 0.5 * (real_loss + fake_loss)
 
-					d_loss.backward()
-					optimizer_D.step()
-					s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
-					c1 += len(batch1_code)
+						d_loss.backward()
+						optimizer_D.step()
+						for p in disc.parameters():
+							p.data.clamp_(-0.01, 0.01)
+						s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
+						c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
 			if (s2 < 0.77) and (s1 < 0.77):
@@ -483,7 +493,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[2:3])].copy()
+	test_data = data[data['batch'].isin(batches[1:4])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -508,11 +518,11 @@ def main():
 
 	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
 	# obj.preprocess()
-	obj.dim_reduction(5000, 'Var')
+	obj.dim_reduction(2500, 'Var')
 	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
-					'epochs': 10}
+					'epochs': 8}
 	
 	obj.train_classifier(True, train_config, cmat=True)
 
