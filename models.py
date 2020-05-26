@@ -9,7 +9,7 @@ class Classifier(nn.Module):
 			# nn.Dropout(p=0.8),
 			# nn.Dropout(p=0.3),
 			nn.Linear(inp_dim, hdim),
-			nn.Dropout(p=0.2),
+			# nn.Dropout(p=0.2),
 			# nn.ReLU(inplace=False),
 			nn.Linear(hdim, headdim),
 			nn.Dropout(p=0.2),
@@ -44,6 +44,33 @@ class Classifier(nn.Module):
 	def get_repr(self, x):
 		return self.fc1(x)
 
+class GaussianNoise(nn.Module):
+	"""Gaussian noise regularizer.
+
+	Args:
+		sigma (float, optional): relative standard deviation used to generate the
+			noise. Relative means that it will be multiplied by the magnitude of
+			the value your are adding the noise to. This means that sigma can be
+			the same regardless of the scale of the vector.
+		is_relative_detach (bool, optional): whether to detach the variable before
+			computing the scale of the noise. If `False` then the scale of the noise
+			won't be seen as a constant but something to optimize: this will bias the
+			network to generate vectors with smaller values.
+	"""
+
+	def __init__(self, sigma=0.1, is_relative_detach=True):
+		super().__init__()
+		self.sigma = sigma
+		self.is_relative_detach = is_relative_detach
+		self.noise = torch.tensor(0, dtype=torch.float)
+
+	def forward(self, x):
+		if self.training and self.sigma != 0:
+			scale = self.sigma * x.detach() if self.is_relative_detach else self.sigma * x
+			sampled_noise = self.noise.to(x.device).repeat(*x.size()).normal_() * scale
+			x = x + sampled_noise
+		return x
+
 class ClassifierBig(nn.Module):
 	def __init__(self, model, inp_dim, headdim, hdim):
 		super(ClassifierBig, self).__init__()
@@ -56,6 +83,8 @@ class ClassifierBig(nn.Module):
 			# nn.Dropout(p=0.3),
 			nn.Linear(inp_dim, hdim),
 			# nn.LeakyReLU(0.2, inplace=False),
+			# GaussianNoise(0.5),
+			# nn.Dropout(p=0.1),
 			nn.ReLU(inplace=False),
 			# nn.BatchNorm1d(hdim),
 			nn.Linear(hdim, hdim),
@@ -97,7 +126,6 @@ class Discriminator(nn.Module):
 
 		self.model = nn.Sequential(
 			nn.Linear(dim, 256),
-			# nn.Dropout(p=0.2),
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.Linear(256, 256),
 			nn.LeakyReLU(0.2, inplace=True),

@@ -24,7 +24,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[2:3])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -51,7 +51,7 @@ def main():
 		obj = pickle.load(f)
 
 	train_config = {'seed': 0, 'batch_size': 64, 'cuda': False,
-					'epochs': 8}
+					'epochs': 15}
 
 	torch.set_num_threads(25)
 	obj.remove_effect(train_gene_mat, test_gene_mat, train_config, test_labels)
