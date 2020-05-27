@@ -238,6 +238,8 @@ class scRNALib:
 				features = features[:, self.variances]
 			elif self.reduce_method == "PCA":
 				features = self.pca.transform(features)
+		if self.scaler is not None:
+			features = self.scaler.transform(features)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -269,7 +271,7 @@ class scRNALib:
 
 	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False):
 		y_pred = self.predict(test_gene_mat, test=test)
-		y_true = labels = np.array([self.class2num[i] for i in test_labels])
+		y_true = np.array([self.class2num[i] for i in test_labels])
 
 		preds = self.filter_pred(y_pred, frac)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
@@ -502,7 +504,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[1:2])].copy()
+	test_data = data[data['batch'].isin(batches[1:4])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
