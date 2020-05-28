@@ -1,13 +1,14 @@
 import numpy as np
 import torch, sys, os, pdb
+import pandas as pd
 from torch import optim
 from torch.autograd import Variable
-from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap
+from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap, normalize
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -271,9 +272,11 @@ class scRNALib:
 
 	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False):
 		y_pred = self.predict(test_gene_mat, test=test)
-		y_true = np.array([self.class2num[i] for i in test_labels])
-
-		preds = self.filter_pred(y_pred, frac)
+		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
+		if frac != 0:
+			preds = self.filter_pred(y_pred, frac)
+		else:
+			preds = np.argmax(y_pred, axis=1)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
@@ -281,26 +284,35 @@ class scRNALib:
 		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
-			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
-			aps = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			print(aps.shape)
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			aps = np.zeros((len(cm), 1))
+			aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
 			cm = np.concatenate([cm, aps], axis=1)
-			print(cm.shape)
 
-			class_labels = list(self.class2num.keys()) + ['AP']
+			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
 			fig = plt.figure(figsize=(10*factor,7*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy {:.3f} mAP {:.3f}'.format(test_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
 		return np.array([self.num2class[i] for i in preds])
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
-		preds = self.filter_pred(y_pred, frac)
+		if frac != 0:
+			preds = self.filter_pred(y_pred, frac)
+		else:
+			preds = np.argmax(y_pred, axis=1)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
@@ -308,19 +320,25 @@ class scRNALib:
 		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
-			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
-			aps = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			print(aps.shape)
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			aps = np.zeros((len(cm), 1))
+			aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
 			cm = np.concatenate([cm, aps], axis=1)
 
-			class_labels = list(self.class2num.keys()) + ['AP']
+			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
-			
 			factor = max(1, len(cm) // 10)
 			fig = plt.figure(figsize=(10*factor,7*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy {:.3f} mAP {:.3f}'.format(test_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -336,7 +354,7 @@ class scRNALib:
 			if np.sum(ind) != 0:
 				best_prob = np.max(probs_train[ind], axis=1)
 				best_prob = np.sort(best_prob)
-				l = int(outlier_frac * len(best_prob))
+				l = int(outlier_frac * len(best_prob)) + 1
 
 				thresholds[top_klass] = best_prob[l]
 
@@ -416,15 +434,17 @@ class scRNALib:
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
 		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=4e-4)
 		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
+		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
+
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
 		count = 0
 		for epoch in range(config['epochs']):
-			if len(batch2_loader) < 50:
-				pBar = tqdm(range(50))
+			if len(batch2_loader) < 60:
+				pBar = tqdm(range(60))
 			else:
 				pBar = tqdm(batch2_loader)
 			model1.eval()
@@ -444,7 +464,10 @@ class scRNALib:
 					optimizer_G.zero_grad()
 
 					batch2_code = model2.get_repr(batch2_inps)
-					g_loss = adversarial_loss(disc(batch2_code), valid)
+					g_loss = adversarial_weight(disc(batch2_code), valid)
+					weights = torch.exp(g_loss.detach() - 1.5).clamp(1., 2.0)
+					sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					g_loss = sample_loss(disc(batch2_code), valid)
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
@@ -461,8 +484,16 @@ class scRNALib:
 						ind = np.random.randint(0, (len(features_batch1)), bs)
 						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
 						batch1_code = model1.get_repr(batch1_inps)
-						real_loss = adversarial_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
-						fake_loss = adversarial_loss(disc(batch2_code.detach()), fake)
+						
+						real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
+						weights = torch.exp(real_loss.detach() - 1.5).clamp(1., 2.0)
+						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
+
+						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
+						weights = torch.exp(fake_loss.detach() - 1.5).clamp(1., 2.0)
+						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
 						# real_loss = -torch.mean(disc(batch1_code))
 						# fake_loss = torch.mean(disc(batch2_code.detach()))
 						d_loss = 0.5 * (real_loss + fake_loss)
@@ -493,8 +524,8 @@ class scRNALib:
 
 def main():
 	import pickle
-	with open('data/pancreas_annotatedbatched.pkl', 'rb') as f:
-		data = pickle.load(f)
+	# data = pd.read_pickle('data/pancreas_integrated.pkl')
+	data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
 	# np.random.shuffle(cell_ids)
@@ -513,10 +544,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	print("Selected Common Labels", common_labels)
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
 	train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -524,7 +556,12 @@ def main():
 	test_labels = test_data['labels']
 	test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
-	assert (set(train_labels)) == (set(test_labels))
+	# assert (set(train_labels)) == (set(test_labels))
+	common_labels.sort()
+	testing_set = list(set(test_labels))
+	testing_set.sort()
+	print("Selected Common Labels", common_labels)
+	print("Test Labels", testing_set)
 
 
 	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
@@ -542,7 +579,7 @@ def main():
 	with open('pancreas_results/scRNALib_obj.pkl', 'wb') as f:
 		pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 	
-	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
+	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="test.pdf")
 
 
 

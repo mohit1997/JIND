@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch, sys, os, pdb
 from scRNALib import scRNALib
 
@@ -25,10 +26,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	print("Selected Common Labels", common_labels)
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
 	train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -37,13 +39,21 @@ def main():
 	test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	# assert (set(train_labels)) == (set(test_labels))
+	common_labels.sort()
+	testing_set = list(set(test_labels))
+	testing_set.sort()
+	print("Selected Common Labels", common_labels)
+	print("Test Labels", testing_set)
 
 
 	with open('pancreas_results/scRNALib_objbr.pkl', 'rb') as f:
 		obj = pickle.load(f)
 
 	torch.set_num_threads(25)
-	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
+	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcmft3.pdf", test=False)
+	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr3.pdf", test=True)
+	predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "pred":predicted_label, "labels":test_labels})
+	predicted_label.to_csv("predicted_label3.txt", sep="\t", index=False)
 	# pdb.set_trace()
 
 

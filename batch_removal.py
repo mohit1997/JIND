@@ -33,10 +33,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	print("Selected Common Labels", common_labels)
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
 	train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -44,14 +45,19 @@ def main():
 	test_labels = test_data['labels']
 	test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
-	assert (set(train_labels)) == (set(test_labels))
+	# assert (set(train_labels)) == (set(test_labels))
+	common_labels.sort()
+	testing_set = list(set(test_labels))
+	testing_set.sort()
+	print("Selected Common Labels", common_labels)
+	print("Test Labels", testing_set)
 
 
 	with open('pancreas_results/scRNALib_obj.pkl', 'rb') as f:
 		obj = pickle.load(f)
 
 	train_config = {'seed': 0, 'batch_size': 64, 'cuda': False,
-					'epochs': 15}
+					'epochs': 20}
 
 	torch.set_num_threads(25)
 	obj.remove_effect(train_gene_mat, test_gene_mat, train_config, test_labels)
