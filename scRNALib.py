@@ -465,7 +465,7 @@ class scRNALib:
 
 					batch2_code = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
-					weights = torch.exp(g_loss.detach() - 1.5).clamp(1., 2.0)
+					weights = torch.exp(g_loss.detach() - 1.5).clamp(0.8, 1.5)
 					sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					g_loss = sample_loss(disc(batch2_code), valid)
 					# g_loss = -torch.mean(disc(batch2_code))
@@ -486,12 +486,12 @@ class scRNALib:
 						batch1_code = model1.get_repr(batch1_inps)
 						
 						real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-						weights = torch.exp(real_loss.detach() - 1.5).clamp(1., 2.0)
+						weights = torch.exp(real_loss.detach() - 1.5).clamp(1., 1.5)
 						sample_loss = torch.nn.BCELoss(weight=weights.detach())
 						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
 
 						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-						weights = torch.exp(fake_loss.detach() - 1.5).clamp(1., 2.0)
+						weights = torch.exp(fake_loss.detach() - 1.5).clamp(1., 1.5)
 						sample_loss = torch.nn.BCELoss(weight=weights.detach())
 						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
 						# real_loss = -torch.mean(disc(batch1_code))

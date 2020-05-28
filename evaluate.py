@@ -28,7 +28,7 @@ def main():
 	common_labels = list(set(train_labels) & set(test_labels))
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
@@ -50,8 +50,8 @@ def main():
 		obj = pickle.load(f)
 
 	torch.set_num_threads(25)
-	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcmft3.pdf", test=False)
-	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr3.pdf", test=True)
+	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt1.pdf", test=False)
+	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr1.pdf", test=True)
 	predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "pred":predicted_label, "labels":test_labels})
 	predicted_label.to_csv("predicted_label3.txt", sep="\t", index=False)
 	# pdb.set_trace()
