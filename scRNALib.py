@@ -1,19 +1,22 @@
 import numpy as np
 import torch, sys, os, pdb
+import pandas as pd
 from torch import optim
 from torch.autograd import Variable
-from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap
+from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap, normalize
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 class scRNALib:
-	global MODEL_WIDTH
+	global MODEL_WIDTH, LDIM
 	MODEL_WIDTH = 1500
+	LDIM = 256
 
 	def __init__(self, gene_mat, cell_labels, path):
 		self.class2num = None
@@ -43,6 +46,7 @@ class scRNALib:
 
 		self.labels = np.array([class2num[i] for i in cell_labels])
 		self.val_stats = None
+		self.scaler = None
 
 	def preprocess(self):
 		print('Applying log transformation ...')
@@ -67,6 +71,12 @@ class scRNALib:
 			self.reduced_features = self.raw_features[:, self.variances]
 			if save_as is not None:
 				np.save('{}_{}'.format(save_as, method), self.reduced_features)
+
+	def normalize(self):
+		scaler = MinMaxScaler((0, 1))
+		self.reduced_features = scaler.fit_transform(self.reduced_features)
+		self.scaler = scaler
+
 
 	def train_classifier(self, use_red, config, cmat=True):
 		if use_red:
@@ -109,7 +119,7 @@ class scRNALib:
 
 		criterion = torch.nn.NLLLoss(weight=class_weights)
 
-		model = Classifier(X_train.shape[1], 256, MODEL_WIDTH, n_classes).to(device)
+		model = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, n_classes).to(device)
 		optimizer = optim.Adam(model.parameters(), lr=1e-3)
 		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, threshold=0.01, verbose=True)
 
@@ -189,6 +199,8 @@ class scRNALib:
 				features = features[:, self.variances]
 			elif self.reduce_method == "PCA":
 				features = self.pca.transform(features)
+		if self.scaler is not None:
+			features = self.scaler.transform(features)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -227,6 +239,8 @@ class scRNALib:
 				features = features[:, self.variances]
 			elif self.reduce_method == "PCA":
 				features = self.pca.transform(features)
+		if self.scaler is not None:
+			features = self.scaler.transform(features)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -258,53 +272,73 @@ class scRNALib:
 
 	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False):
 		y_pred = self.predict(test_gene_mat, test=test)
-		y_true = labels = np.array([self.class2num[i] for i in test_labels])
-
-		preds = self.filter_pred(y_pred, frac)
+		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
+		if frac != 0:
+			preds = self.filter_pred(y_pred, frac)
+		else:
+			preds = np.argmax(y_pred, axis=1)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
-		print('Test Acc Pre {:.4f} Post {:4f}'.format(pretest_acc, test_acc))
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
-			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
-			aps = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			print(aps.shape)
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			aps = np.zeros((len(cm), 1))
+			aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
 			cm = np.concatenate([cm, aps], axis=1)
-			print(cm.shape)
 
-			class_labels = list(self.class2num.keys()) + ['AP']
+			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
 			fig = plt.figure(figsize=(10*factor,7*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy {:.3f} mAP {:.3f}'.format(test_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
 		return np.array([self.num2class[i] for i in preds])
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
-		preds = self.filter_pred(y_pred, frac)
+		if frac != 0:
+			preds = self.filter_pred(y_pred, frac)
+		else:
+			preds = np.argmax(y_pred, axis=1)
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
-		print('Test Acc Pre {:.4f} Post {:4f}'.format(pretest_acc, test_acc))
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
 
 		if name is not None:
-			cm = confusion_matrix(y_true, preds, normalize='true')[:self.n_classes]
-			aps = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			print(aps.shape)
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			aps = np.zeros((len(cm), 1))
+			aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
 			cm = np.concatenate([cm, aps], axis=1)
-			print(np.max(cm), np.min(cm), cm.dtype, cm.shape)
 
-			class_labels = list(self.class2num.keys()) + ['AP']
+			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
-			
 			factor = max(1, len(cm) // 10)
 			fig = plt.figure(figsize=(10*factor,7*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy {:.3f} mAP {:.3f}'.format(test_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -320,7 +354,7 @@ class scRNALib:
 			if np.sum(ind) != 0:
 				best_prob = np.max(probs_train[ind], axis=1)
 				best_prob = np.sort(best_prob)
-				l = int(outlier_frac * len(best_prob))
+				l = int(outlier_frac * len(best_prob)) + 1
 
 				thresholds[top_klass] = best_prob[l]
 
@@ -356,6 +390,9 @@ class scRNALib:
 			elif self.reduce_method == "PCA":
 				features_batch1 = self.pca.transform(features_batch1)
 				features_batch2 = self.pca.transform(features_batch2)
+		if self.scaler is not None:
+			features_batch1 = self.scaler.transform(features_batch1)
+			features_batch2 = self.scaler.transform(features_batch2)
 		
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
@@ -384,26 +421,33 @@ class scRNALib:
 		for param in model1.parameters():
 			param.requires_grad = False
 		# Define new model
-		model_copy = Classifier(features_batch1.shape[1], 256, MODEL_WIDTH, self.n_classes).to(device)
+		model_copy = Classifier(features_batch1.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
 		# Intialize it with the same parameter values as trained model
 		model_copy.load_state_dict(model1.state_dict())
 		for param in model_copy.parameters():
 			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], 256, 128).to(device)
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 64).to(device)
 
-		disc = Discriminator(256).to(device)
+		disc = Discriminator(LDIM).to(device)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=3e-4)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=4e-4)
 		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
+		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
+		sample_loss = torch.nn.BCELoss()
+
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
 		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
+		count = 0
 		for epoch in range(config['epochs']):
-			pBar = tqdm(batch1_loader)
+			if len(batch2_loader) < 60:
+				pBar = tqdm(range(60))
+			else:
+				pBar = tqdm(batch2_loader)
 			model1.eval()
 			model2.eval()
 			disc.train()
@@ -414,38 +458,67 @@ class scRNALib:
 				valid = Variable(Tensor(bs, 1).fill_(1.0), requires_grad=False)
 				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
 
-
+				sample_loss = torch.nn.BCELoss()
 				for i in range(1):
 					ind = np.random.randint(0, (len(features_batch2)), bs)
 					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
 					optimizer_G.zero_grad()
 
 					batch2_code = model2.get_repr(batch2_inps)
-					g_loss = adversarial_loss(disc(batch2_code), valid)
+					g_loss = adversarial_weight(disc(batch2_code), valid)
+					# print(np.mean(weights.numpy()))
+					weights = torch.exp(g_loss.detach() - 0.8).clamp(1.0, 1.5)
+					sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					g_loss = sample_loss(disc(batch2_code), valid)
+					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
 					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
 					c2 += len(batch2_code)
 
 				if s2 < 0.8:
-					optimizer_D.zero_grad()
-					batch1_code = model1.get_repr(sample['x'].to(device))
-					real_loss = adversarial_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
-					fake_loss = adversarial_loss(disc(batch2_code.detach()), fake)
-					d_loss = 0.5 * (real_loss + fake_loss)
+					sample_loss = torch.nn.BCELoss()
+					for i in range(1):
+						if i != 0:
+							ind = np.random.randint(0, (len(features_batch2)), bs)
+							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+							batch2_code = model2.get_repr(batch2_inps)
+						optimizer_D.zero_grad()
+						ind = np.random.randint(0, (len(features_batch1)), bs)
+						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
+						batch1_code = model1.get_repr(batch1_inps)
+						
+						real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
+						weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
+						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
 
-					d_loss.backward()
-					optimizer_D.step()
-					s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
-					c1 += len(batch1_code)
+						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
+						weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
+						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
+						# real_loss = -torch.mean(disc(batch1_code))
+						# fake_loss = torch.mean(disc(batch2_code.detach()))
+						d_loss = 0.5 * (real_loss + fake_loss)
+
+						d_loss.backward()
+						optimizer_D.step()
+						# for p in disc.parameters():
+						# 	p.data.clamp_(-0.01, 0.01)
+						s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
+						c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.73) and (s1 < 0.73):
+			if (s2 < 0.77) and (s1 < 0.77):
+				count += 1
 				self.test_model = model2
 				torch.save(model2.state_dict(), self.path+"/best_br.pth")
 				if test_labels is not None:
 					print("Evaluating....")
 					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
+
+				if count >= 4:
+					break
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
 		self.test_model = model2
@@ -454,8 +527,8 @@ class scRNALib:
 
 def main():
 	import pickle
-	with open('data/pancreas_annotatedbatched.pkl', 'rb') as f:
-		data = pickle.load(f)
+	# data = pd.read_pickle('data/pancreas_integrated.pkl')
+	data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
 	# np.random.shuffle(cell_ids)
@@ -465,7 +538,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	test_data = data[data['batch'].isin(batches[1:4])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -474,10 +547,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	print("Selected Common Labels", common_labels)
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
 	train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -485,15 +559,21 @@ def main():
 	test_labels = test_data['labels']
 	test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
-	assert (set(train_labels)) == (set(test_labels))
+	# assert (set(train_labels)) == (set(test_labels))
+	common_labels.sort()
+	testing_set = list(set(test_labels))
+	testing_set.sort()
+	print("Selected Common Labels", common_labels)
+	print("Test Labels", testing_set)
 
 
 	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
 	# obj.preprocess()
-	obj.dim_reduction(5000, 'Var')
+	obj.dim_reduction(2500, 'Var')
+	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
-					'epochs': 10}
+					'epochs': 8}
 	
 	obj.train_classifier(True, train_config, cmat=True)
 
@@ -502,7 +582,7 @@ def main():
 	with open('pancreas_results/scRNALib_obj.pkl', 'wb') as f:
 		pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 	
-	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
+	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="test.pdf")
 
 
 

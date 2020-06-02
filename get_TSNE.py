@@ -24,7 +24,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[2:3])].copy()
+	test_data = data[data['batch'].isin(batches[1:4])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -33,10 +33,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	print("Selected Common Labels", common_labels)
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[3:4])].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
 	train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -44,7 +45,12 @@ def main():
 	test_labels = test_data['labels']
 	test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
-	assert (set(train_labels)) == (set(test_labels))
+	# assert (set(train_labels)) == (set(test_labels))
+	common_labels.sort()
+	testing_set = list(set(test_labels))
+	testing_set.sort()
+	print("Selected Common Labels", common_labels)
+	print("Test Labels", testing_set)
 
 
 	with open('pancreas_results/scRNALib_objbr.pkl', 'rb') as f:
