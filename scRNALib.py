@@ -426,14 +426,14 @@ class scRNALib:
 		model_copy.load_state_dict(model1.state_dict())
 		for param in model_copy.parameters():
 			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 64).to(device)
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 256).to(device)
 
 		disc = Discriminator(LDIM).to(device)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=4e-4)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=5e-5)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
@@ -444,8 +444,8 @@ class scRNALib:
 		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
 		count = 0
 		for epoch in range(config['epochs']):
-			if len(batch2_loader) < 60:
-				pBar = tqdm(range(60))
+			if len(batch2_loader) < 50:
+				pBar = tqdm(range(50))
 			else:
 				pBar = tqdm(batch2_loader)
 			model1.eval()
@@ -467,7 +467,7 @@ class scRNALib:
 					batch2_code = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
-					weights = torch.exp(g_loss.detach() - 0.8).clamp(1.0, 1.5)
+					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					g_loss = sample_loss(disc(batch2_code), valid)
 					# g_loss = -torch.mean(disc(batch2_code))
@@ -478,7 +478,7 @@ class scRNALib:
 
 				if s2 < 0.8:
 					sample_loss = torch.nn.BCELoss()
-					for i in range(1):
+					for i in range(2):
 						if i != 0:
 							ind = np.random.randint(0, (len(features_batch2)), bs)
 							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
@@ -489,13 +489,13 @@ class scRNALib:
 						batch1_code = model1.get_repr(batch1_inps)
 						
 						real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-						weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
-						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
+						# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
 
 						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-						weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
-						sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
+						# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
 						# real_loss = -torch.mean(disc(batch1_code))
 						# fake_loss = torch.mean(disc(batch2_code.detach()))

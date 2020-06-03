@@ -8,10 +8,9 @@ class Classifier(nn.Module):
 		self.fc1 = nn.Sequential(
 			# nn.Dropout(p=0.8),
 			# nn.Dropout(p=0.3),
-			nn.Linear(inp_dim, hdim),
+			nn.Linear(inp_dim, headdim),
 			# nn.Dropout(p=0.2),
 			# nn.ReLU(inplace=False),
-			nn.Linear(hdim, headdim),
 			nn.Dropout(p=0.2),
 			# nn.BatchNorm1d(headdim),
 			# nn.ReLU(True),
