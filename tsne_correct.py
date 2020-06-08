@@ -1,8 +1,17 @@
 import numpy as np
-import pandas as pd
 import torch, sys, os, pdb
+from torch import optim
+from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+from models import Classifier
+from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 from scRNALib import scRNALib
-
+import seaborn as sns
+import pandas as pd
 
 def main():
 	import pickle
@@ -47,7 +56,7 @@ def main():
 
 	for lab in testing_set:
 		ind = test_labels == lab
-		print("Proporation {}: {:.3f}".format(lab, np.mean(ind)))
+		print("Proportion {}: {:.3f}".format(lab, np.mean(ind)))
 
 
 	with open('pancreas_results/scRNALib_objbr.pkl', 'rb') as f:
@@ -56,10 +65,42 @@ def main():
 	torch.set_num_threads(25)
 	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt1.pdf", test=False)
 	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr1.pdf", test=True)
-	predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "pred":predicted_label, "labels":test_labels})
-	predicted_label.to_csv("predicted_label3.txt", sep="\t", index=False)
-	# pdb.set_trace()
+
+	# encoding = obj.get_encoding(test_gene_mat, test=True)
+	embedding = obj.get_TSNE(test_gene_mat.values)
+
+	from sklearn.cluster import DBSCAN, OPTICS, SpectralClustering, AgglomerativeClustering
+	from sklearn.neighbors import kneighbors_graph
+
+	db = DBSCAN(eps=3., min_samples=2).fit(embedding)
+
+	knn_graph = kneighbors_graph(embedding, 30, include_self=False)
+	agg = AgglomerativeClustering(n_clusters=(obj.n_classes+1), connectivity=knn_graph).fit(embedding)
+	opt = OPTICS(min_samples=20, max_eps=6.).fit(embedding)
+
+	df = pd.DataFrame({"ex": embedding[:, 0],
+						"ey": embedding[:, 1],
+						# "cellname":test_gene_mat.index,
+						"pred": predicted_label,
+						"labels": test_labels,
+						"DBSCAN": db.labels_,
+						"AGG": agg.labels_,
+						"OPTICS": opt.labels_,
+						})
+	ind = df['pred'] == df['labels']
+	data_filt = df[~df['pred'].isin(["Unassigned"])]
+	ind_filt = data_filt['pred'] == data_filt['labels']
+	ind_filt = ind_filt.values
+	print("Accuracy Pre {:.4f} Post {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+	
+	df.to_pickle("cluster_res.pkl")
+	
+
+
+
 
 
 if __name__ == "__main__":
 	main()
+
+

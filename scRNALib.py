@@ -121,7 +121,7 @@ class scRNALib:
 
 		model = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, n_classes).to(device)
 		optimizer = optim.Adam(model.parameters(), lr=1e-3)
-		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5, threshold=0.01, verbose=True)
+		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
 
 		logger = {'tloss': [], 'val_acc': []}
 		best_val_acc = 0.
@@ -372,9 +372,9 @@ class scRNALib:
 		return pred_class
 
 	def get_TSNE(self, features):
-		pca = PCA(n_components=30)
+		pca = PCA(n_components=50)
 		reduced_feats = pca.fit_transform(features)
-		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1).fit_transform(reduced_feats)
+		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1, perplexity=50).fit_transform(reduced_feats)
 		return embeddings
 
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
@@ -432,8 +432,8 @@ class scRNALib:
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=5e-5)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-5)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=5e-5, weight_decay=1e-6)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
@@ -459,17 +459,18 @@ class scRNALib:
 				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
 
 				sample_loss = torch.nn.BCELoss()
+				disc.eval()
 				for i in range(1):
 					ind = np.random.randint(0, (len(features_batch2)), bs)
 					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
 					optimizer_G.zero_grad()
 
-					batch2_code = model2.get_repr(batch2_inps)
+					batch2_code, penalty = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
 					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid)
+					g_loss = sample_loss(disc(batch2_code), valid) + 0.005 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
@@ -478,11 +479,13 @@ class scRNALib:
 
 				if s2 < 0.8:
 					sample_loss = torch.nn.BCELoss()
+					model2.eval()
+					disc.train()
 					for i in range(2):
 						if i != 0:
 							ind = np.random.randint(0, (len(features_batch2)), bs)
 							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-							batch2_code = model2.get_repr(batch2_inps)
+							batch2_code, _ = model2.get_repr(batch2_inps)
 						optimizer_D.zero_grad()
 						ind = np.random.randint(0, (len(features_batch1)), bs)
 						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
@@ -517,7 +520,7 @@ class scRNALib:
 					print("Evaluating....")
 					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 
-				if count >= 4:
+				if count >= 5:
 					break
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
@@ -549,8 +552,8 @@ def main():
 	common_labels = list(set(train_labels) & set(test_labels))
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
-	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
+	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
@@ -569,11 +572,11 @@ def main():
 
 	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
 	# obj.preprocess()
-	obj.dim_reduction(2500, 'Var')
+	obj.dim_reduction(5000, 'Var')
 	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
-					'epochs': 8}
+					'epochs': 15}
 	
 	obj.train_classifier(True, train_config, cmat=True)
 
@@ -582,7 +585,7 @@ def main():
 	with open('pancreas_results/scRNALib_obj.pkl', 'wb') as f:
 		pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 	
-	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="test.pdf")
+	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
 
 
 
