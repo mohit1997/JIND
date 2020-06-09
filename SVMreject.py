@@ -241,8 +241,8 @@ class scRNALibSVM:
 
 def main():
     import pickle
-    data = pd.read_pickle('data/pancreas_integrated.pkl')
-    # data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
+    # data = pd.read_pickle('data/pancreas_integrated.pkl')
+    data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
     cell_ids = np.arange(len(data))
     np.random.seed(0)
     # np.random.shuffle(cell_ids)
@@ -263,8 +263,8 @@ def main():
     common_labels = list(set(train_labels) & set(test_labels))
 
     train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-    test_data = data[data['batch'].isin(batches[2:3])].copy()
-    # test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+    test_data = data[data['batch'].isin(batches[1:2])].copy()
+    test_data = test_data[test_data['labels'].isin(common_labels)].copy()
     # test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
     train_labels = train_data['labels']

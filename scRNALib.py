@@ -520,7 +520,7 @@ class scRNALib:
 					print("Evaluating....")
 					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 
-				if count >= 5:
+				if count >= 3:
 					break
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
@@ -553,7 +553,7 @@ def main():
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
 	test_data = data[data['batch'].isin(batches[1:2])].copy()
-	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
