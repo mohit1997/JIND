@@ -40,3 +40,5 @@ data['labels'] = adata.obs['Cell type']
 # Save pandas data frame to pickle file (This can be read in R as well)
 data.to_pickle("dendrites_annotated.pkl")
 ```
+
+## Run JIND
