@@ -47,7 +47,7 @@ import numpy as np
 from scRNALib import scRNALib
 
 # Read Dataset
-data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
+data = pd.read_pickle('data/data_annotated.pkl')
 
 cell_ids = np.arange(len(data))
 np.random.seed(0)
