@@ -1,10 +1,19 @@
-# scLearn
+# JIND
 
 # Requirements
 1. Python3
 2. Numpy
 3. Pandas
 4. Pytorch
+
+# Installation
+
+```bash
+cd JIND
+python3 -m venv tc
+source tc/bin/activate
+pip install -r requirements.txt
+```
 
 
 # Documentation
