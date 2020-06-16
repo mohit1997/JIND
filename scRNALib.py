@@ -342,10 +342,43 @@ class scRNALib:
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
+	def generate_cfmt(self, pred_labels, test_labels, name=None):
+		preds = np.array([self.class2num[i] for i in pred_labels])
+		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
+
+		pretest_acc = (y_true == preds).mean() 
+		test_acc = (y_true == preds).mean()
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
+
+		if name is not None:
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			# aps = np.zeros((len(cm), 1))
+			# aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
+			# cm = np.concatenate([cm, aps], axis=1)
+
+			class_labels = list(self.class2num.keys()) +['Novel']
+			cm_ob = ConfusionMatrixPlot(cm, class_labels)
+			factor = max(1, len(cm) // 10)
+			fig = plt.figure(figsize=(10*factor,7*factor))
+			cm_ob.plot(values_format='0.2f', ax=fig.gca())
+
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc))
+			plt.tight_layout()
+			plt.savefig('{}/{}'.format(self.path, name))
+
 
 	def get_thresholds(self, outlier_frac):
 
-		thresholds = 0.9*np.ones((self.n_classes))
+		thresholds = 0.9 * np.ones((self.n_classes))
 		probs_train = self.val_stats['pred']
 		y_train = self.val_stats['true']
 		for top_klass in range(self.n_classes):
@@ -356,7 +389,8 @@ class scRNALib:
 				best_prob = np.sort(best_prob)
 				l = int(outlier_frac * len(best_prob)) + 1
 
-				thresholds[top_klass] = best_prob[l]
+				if l < len(best_prob):
+					thresholds[top_klass] = best_prob[l]
 
 		return thresholds
 
@@ -468,9 +502,9 @@ class scRNALib:
 					batch2_code, penalty = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
-					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
-					sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) + 0.005 * penalty
+					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
+					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					g_loss = sample_loss(disc(batch2_code), valid) + 0.01 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
@@ -512,7 +546,7 @@ class scRNALib:
 						c1 += len(batch1_code)
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.77) and (s1 < 0.77):
+			if (s2 < 0.78) and (s1 < 0.78):
 				count += 1
 				self.test_model = model2
 				torch.save(model2.state_dict(), self.path+"/best_br.pth")
@@ -525,6 +559,134 @@ class scRNALib:
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
 		self.test_model = model2
+
+	def ftune(self, test_gene_mat, config, cmat=True):
+		features = test_gene_mat.values
+		if self.preprocessed:
+			features = np.log(1+features)
+		if self.reduce_method is not None:
+			if self.reduce_method == "Var":
+				features = features[:, self.variances]
+			elif self.reduce_method == "PCA":
+				features = self.pca.transform(features)
+		if self.scaler is not None:
+			features = self.scaler.transform(features)
+
+		y_pred = self.predict(test_gene_mat, test=True)
+		preds = self.filter_pred(y_pred, 0.5)
+
+		ind = preds != self.n_classes
+
+		filtered_features = features[ind]
+		filtered_labels = preds[ind]
+
+		torch.manual_seed(config['seed'])
+		torch.cuda.manual_seed(config['seed'])
+		np.random.seed(config['seed'])
+		torch.backends.cudnn.deterministic = True
+		X_train, X_val, y_train, y_val = train_test_split(
+			filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+
+		train_dataset = DataLoaderCustom(X_train, y_train)
+		val_dataset = DataLoaderCustom(X_val, y_val)
+
+
+		use_cuda = config['cuda']
+		use_cuda = use_cuda and torch.cuda.is_available()
+
+		device = torch.device("cuda" if use_cuda else "cpu")
+		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
+
+		train_loader = torch.utils.data.DataLoader(train_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=True, **kwargs)
+
+		val_loader = torch.utils.data.DataLoader(val_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=False, **kwargs)
+
+		weights, n_classes = self.get_class_weights()
+		class_weights = torch.FloatTensor(weights).to(device)
+
+		criterion = torch.nn.NLLLoss(weight=class_weights)
+
+		model1 = self.model.to(device)
+		for param in model1.parameters():
+			param.requires_grad = False
+		# Define new model
+		model_copy = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
+		# Intialize it with the same parameter values as trained model
+		model_copy.load_state_dict(model1.state_dict())
+		for param in model_copy.parameters():
+			param.requires_grad = True
+
+		# model = model_copy
+		model = ClassifierBig(model_copy, X_train.shape[1], LDIM, 256).to(device)
+
+		model.load_state_dict(self.test_model.to(device).state_dict())
+
+
+		for param in model.parameters():
+			param.requires_grad = False
+
+		for param in model.m1.parameters():
+			param.requires_grad = True
+
+
+		optimizer = optim.Adam(model.parameters(), lr=1e-4)
+		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
+
+		logger = {'tloss': [], 'val_acc': []}
+		best_val_acc = 0.
+		for epoch in range(config['epochs']):
+			c, s = 0, 0
+			pBar = tqdm(train_loader)
+			model.train()
+			for sample in pBar:
+				x = sample['x'].to(device)
+				y = sample['y'].to(device)
+				
+				optimizer.zero_grad()
+				p = model.predict(x)
+				loss = criterion(p, y)
+				# print(loss)
+				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
+				c += len(p)
+				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
+				loss.backward()
+				optimizer.step()
+			logger['tloss'].append(s)
+			sch.step(s)
+
+			model.eval()
+			y_pred, y_true = [], []
+			with torch.no_grad():
+				for sample in val_loader:
+					x = sample['x'].to(device)
+					y = sample['y'].to(device)
+					
+					p = model.predict_proba(x)
+					y_pred.append(p.cpu().detach().numpy())
+					y_true.append(y.cpu().detach().numpy())
+			y_pred = np.concatenate(y_pred)
+			y_true = np.concatenate(y_true)
+
+			val_acc = (y_true == y_pred.argmax(axis=1)).mean()
+			logger['val_acc'].append(val_acc)
+			print("Validation Accuracy {:.4f}".format(val_acc))
+			if val_acc >= best_val_acc:
+				# print('Model improved')
+				best_val_acc = val_acc
+				torch.save(model.state_dict(), self.path+"/bestbr_ftune.pth")
+
+		if cmat:
+			# Plot validation confusion matrix
+			self.plot_cfmt(self.val_stats['pred'], self.val_stats['true'], 0.05, 'val_cfmtftune.pdf')
+
+		# Finally keep the best model
+		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
+		self.test_model = model
+		self.test_model.eval()
 
 
 
@@ -541,7 +703,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[1:4])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -550,10 +712,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
+	common_labels.sort()
 
-	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
+	train_data = train_data[train_data['labels'].isin(common_labels[:-4])].copy()
 	test_data = data[data['batch'].isin(batches[1:2])].copy()
-	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']

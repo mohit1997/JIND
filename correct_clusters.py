@@ -14,6 +14,9 @@ import seaborn as sns
 import pandas as pd
 
 def main():
+	import pickle
+	with open('pancreas_results/scRNALib_objbr.pkl', 'rb') as f:
+		obj = pickle.load(f)
 	df = pd.read_pickle("cluster_res.pkl")
 	
 	ind = df['pred'] == "Unassigned"
@@ -90,6 +93,8 @@ def main():
 	ind_filt = data_filt['pred_correct'] == data_filt['labels']
 	ind_filt = ind_filt.values
 	print("Accuracy Pre {:.4f} Post {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+	obj.generate_cfmt(df['pred_correct'], df['labels'], name="testcfmtcorrected.pdf")
 
 
 

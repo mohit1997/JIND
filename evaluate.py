@@ -28,8 +28,8 @@ def main():
 	common_labels = list(set(train_labels) & set(test_labels))
 
 	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = data[data['batch'].isin(batches[3:4])].copy()
-	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
+	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']

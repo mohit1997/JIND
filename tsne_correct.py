@@ -15,8 +15,8 @@ import pandas as pd
 
 def main():
 	import pickle
-	with open('data/pancreas_annotatedbatched.pkl', 'rb') as f:
-		data = pickle.load(f)
+	# data = pd.read_pickle('data/pancreas_integrated.pkl')
+	data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
 	# np.random.shuffle(cell_ids)
@@ -26,7 +26,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[1:4])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -35,10 +35,11 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
+	common_labels.sort()
 
-	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = data[data['batch'].isin(batches[2:3])].copy()
-	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	train_data = train_data[train_data['labels'].isin(common_labels[:-4])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
+	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
