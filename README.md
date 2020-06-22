@@ -12,7 +12,7 @@
 cd JIND
 python3 -m venv tc
 source tc/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 
@@ -53,7 +53,7 @@ data.to_pickle("data_annotated.pkl")
 ## Run JIND
 ```python
 import numpy as np
-from scRNALib import scRNALib
+from JIND import scRNALib
 
 # Read Dataset
 data = pd.read_pickle('data_annotated.pkl')
