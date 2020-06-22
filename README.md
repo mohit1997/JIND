@@ -53,7 +53,7 @@ data.to_pickle("data_annotated.pkl")
 ## Run JIND
 ```python
 import numpy as np
-from JIND import scRNALib
+from jind import scRNALib
 
 # Read Dataset
 data = pd.read_pickle('data_annotated.pkl')
