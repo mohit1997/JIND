@@ -241,8 +241,8 @@ class scRNALibSVM:
 
 def main():
     import pickle
-    # data = pd.read_pickle('data/pancreas_integrated.pkl')
-    data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
+    data = pd.read_pickle('data/dendrites_integrated.pkl')
+
     cell_ids = np.arange(len(data))
     np.random.seed(0)
     # np.random.shuffle(cell_ids)
@@ -252,7 +252,7 @@ def main():
     batches.sort()
     l = int(0.5*len(batches))
     train_data = data[data['batch'].isin(batches[0:1])].copy()
-    test_data = data[data['batch'].isin(batches[1:4])].copy()
+    test_data = data[data['batch'].isin(batches[1:2])].copy()
 
     train_labels = train_data['labels']
     # train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -280,8 +280,7 @@ def main():
     print("Selected Common Labels", common_labels)
     print("Test Labels", testing_set)
 
-
-    obj = scRNALibSVM(train_gene_mat, train_labels, path="pancreas_results")
+    obj = scRNALibSVM(train_gene_mat, train_labels, path="human_results")
     # obj.preprocess()
     obj.dim_reduction(5000, 'Var')
 
@@ -291,7 +290,7 @@ def main():
 
     obj.raw_features = None
     obj.reduced_features = None
-    with open('pancreas_results/scRNALibSVM_obj.pkl', 'wb') as f:
+    with open('human_results/scRNALibSVM_obj.pkl', 'wb') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
     
     obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtSVM.pdf")

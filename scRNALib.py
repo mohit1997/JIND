@@ -342,43 +342,10 @@ class scRNALib:
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
-	def generate_cfmt(self, pred_labels, test_labels, name=None):
-		preds = np.array([self.class2num[i] for i in pred_labels])
-		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
-
-		pretest_acc = (y_true == preds).mean() 
-		test_acc = (y_true == preds).mean()
-		ind = preds != self.n_classes
-		pred_acc = (y_true[ind] == preds[ind]).mean()
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
-
-		if name is not None:
-			cm = normalize(confusion_matrix(y_true,
-							preds,
-							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
-							),
-							normalize='true')
-			cm = np.delete(cm, (self.n_classes), axis=0)
-			if cm.shape[1] > (self.n_classes+1):
-				cm = np.delete(cm, (self.n_classes+1), axis=1)
-			# aps = np.zeros((len(cm), 1))
-			# aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			# cm = np.concatenate([cm, aps], axis=1)
-
-			class_labels = list(self.class2num.keys()) +['Novel']
-			cm_ob = ConfusionMatrixPlot(cm, class_labels)
-			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(10*factor,7*factor))
-			cm_ob.plot(values_format='0.2f', ax=fig.gca())
-
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc))
-			plt.tight_layout()
-			plt.savefig('{}/{}'.format(self.path, name))
-
 
 	def get_thresholds(self, outlier_frac):
 
-		thresholds = 0.9 * np.ones((self.n_classes))
+		thresholds = 0.9*np.ones((self.n_classes))
 		probs_train = self.val_stats['pred']
 		y_train = self.val_stats['true']
 		for top_klass in range(self.n_classes):
@@ -388,8 +355,8 @@ class scRNALib:
 				best_prob = np.max(probs_train[ind], axis=1)
 				best_prob = np.sort(best_prob)
 				l = int(outlier_frac * len(best_prob)) + 1
-
-				if l < len(best_prob):
+				# print(len(best_prob))
+				if l < (len(best_prob)): 
 					thresholds[top_klass] = best_prob[l]
 
 		return thresholds
@@ -502,8 +469,8 @@ class scRNALib:
 					batch2_code, penalty = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
-					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
+					sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					g_loss = sample_loss(disc(batch2_code), valid) + 0.01 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
@@ -573,7 +540,7 @@ class scRNALib:
 			features = self.scaler.transform(features)
 
 		y_pred = self.predict(test_gene_mat, test=True)
-		preds = self.filter_pred(y_pred, 0.5)
+		preds = self.filter_pred(y_pred, 0.3)
 
 		ind = preds != self.n_classes
 
@@ -617,6 +584,8 @@ class scRNALib:
 		model_copy = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
 		# Intialize it with the same parameter values as trained model
 		model_copy.load_state_dict(model1.state_dict())
+
+
 		for param in model_copy.parameters():
 			param.requires_grad = True
 
@@ -692,8 +661,8 @@ class scRNALib:
 
 def main():
 	import pickle
-	# data = pd.read_pickle('data/pancreas_integrated.pkl')
-	data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
+	data = pd.read_pickle('data/blood_annotated.pkl')
+
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
 	# np.random.shuffle(cell_ids)
@@ -712,9 +681,8 @@ def main():
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
-	common_labels.sort()
 
-	train_data = train_data[train_data['labels'].isin(common_labels[:-4])].copy()
+	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
 	test_data = data[data['batch'].isin(batches[1:2])].copy()
 	test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
@@ -733,10 +701,9 @@ def main():
 	print("Test Labels", testing_set)
 
 
-	obj = scRNALib(train_gene_mat, train_labels, path="pancreas_results")
+	obj = scRNALib(train_gene_mat, train_labels, path="blood_results")
 	# obj.preprocess()
 	obj.dim_reduction(5000, 'Var')
-	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
 					'epochs': 15}
@@ -745,10 +712,10 @@ def main():
 
 	obj.raw_features = None
 	obj.reduced_features = None
-	with open('pancreas_results/scRNALib_obj.pkl', 'wb') as f:
+	with open('blood_results/scRNALib_obj.pkl', 'wb') as f:
 		pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 	
-	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
+	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
 
 
 

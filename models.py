@@ -134,7 +134,7 @@ class ClassifierBig(nn.Module):
 		out = torch.cat([rep, x], dim=1)
 		h = self.fc2(x) + rep * (1 + self.fc3(x))
 		# h = h.clamp(-1., 1.)
-		return h, torch.norm(self.fc3(x))# + torch.norm(self.fc2(x))
+		return h, torch.norm(self.fc3(x))
 
 class Discriminator(nn.Module):
 	def __init__(self, dim):
