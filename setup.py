@@ -1,7 +1,7 @@
 import setuptools
 from setuptools import setup
 
-setup(name='JIND',
+setup(name='jind',
 	version='0.1',
 	description='single cell classification method',
 	url='https://github.com/mohit1997/JIND',
