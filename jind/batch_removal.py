@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
-from scRNALib import scRNALib
+from .jindlib import JindLib
 
 def main():
 	import pickle

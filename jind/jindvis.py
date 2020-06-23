@@ -1,13 +1,14 @@
 import numpy as np
 import pandas as pd
 import sys, os, pdb
-from .scRNALib import JindLib
+from .jindlib import JindLib
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import umap
 import matplotlib.pyplot as plt
 import multiprocessing
 from functools import partial
+import pickle
 import seaborn as sns
 
 class JindVis:
@@ -342,7 +343,8 @@ class JindVis:
 		return
 
 	def plot_2d(self, method="tsne", test=False):
-		preds = self.obj.evaluate(self.mat, self.labels, frac=0.05, name=None, test=test)
+		out = self.obj.evaluate(self.mat, self.labels, frac=0.05, name=None, test=test)
+		preds = list(out['predictions'])
 		df = pd.DataFrame({'Predictions': preds,
 						'Labels': self.labels,
 						"preds_labels": ["{}_{}".format(i, j) for i,j in zip(preds, list(self.labels))]
@@ -362,7 +364,7 @@ class JindVis:
 
 			plt.figure()
 			order = list(set(df['Predictions']))
-			order.sort()
+			order = sorted(order, key=str.casefold)
 
 			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order)
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
@@ -371,7 +373,7 @@ class JindVis:
 
 			plt.figure()
 			order = list(set(df['Labels']))
-			order.sort()
+			order = sorted(order, key=str.casefold)
 
 			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Labels', data=df, hue_order=order)
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
@@ -381,7 +383,7 @@ class JindVis:
 			plt.figure(figsize=(16, 8))
 			plt.subplot(1, 2, 1)			
 			order = list(set(df['Labels']))
-			order.sort()
+			order = sorted(order, key=str.casefold)
 
 			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Labels', data=df, hue_order=order, style='|Assessment|', style_order=["correct", "miss", "Unassigned"], size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
@@ -389,7 +391,7 @@ class JindVis:
 			
 			plt.subplot(1, 2, 2)
 			order = list(set(df['Predictions']))
-			order.sort()
+			order = sorted(order, key=str.casefold)
 
 			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order, style='|Assessment|', style_order=["correct", "miss", "Unassigned"], size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
@@ -397,6 +399,12 @@ class JindVis:
 			plt.tight_layout()
 
 			plt.savefig("{}/{}_pred_true.pdf".format(self.dir, method))
+
+	def to_pickle(self, name):
+		self.mat = None
+		self.reduced_features = None
+		with open('{}/{}'.format(self.dir, name), 'wb') as f:
+			pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
 
 def entropy(inp, base=2):

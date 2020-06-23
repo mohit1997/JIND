@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 import sys, os, pdb
-from .scRNALib import scRNALib
+from .jindlib import JindLib
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import umap
 import matplotlib.pyplot as plt
 import multiprocessing
 from functools import partial
-from .scRNAvis import scRNAVis
+from .jindvis import JindVis
 
 
 def main():
@@ -53,7 +53,7 @@ def main():
 	print("Test Labels", testing_set)
 
 
-	with open('blood_results/scRNAvis_obj.pkl', 'rb') as f:
+	with open('blood_results/JindVis_obj.pkl', 'rb') as f:
 		visobj = pickle.load(f)
 
 	visobj.mat = test_gene_mat

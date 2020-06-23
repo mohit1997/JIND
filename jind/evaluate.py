@@ -1,6 +1,6 @@
 import numpy as np
 import torch, sys, os, pdb
-from scRNALib import scRNALib
+from .jindlib import JindLib
 
 
 def main():

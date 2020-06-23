@@ -12,6 +12,9 @@ from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.cluster import DBSCAN, OPTICS, SpectralClustering, AgglomerativeClustering
+import seaborn as sns
+import pickle
 
 class JindLib:
 	global MODEL_WIDTH, LDIM
@@ -306,7 +309,10 @@ class JindLib:
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
-		return np.array([self.num2class[i] for i in preds])
+		predictions = [self.num2class[i] for i in preds]
+		predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions, "labels":test_labels})
+
+		return predicted_label
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
 		if frac != 0:
@@ -339,6 +345,39 @@ class JindLib:
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
 			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
+			plt.tight_layout()
+			plt.savefig('{}/{}'.format(self.path, name))
+
+	def generate_cfmt(self, pred_labels, test_labels, name=None):
+		preds = np.array([self.class2num[i] for i in pred_labels])
+		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
+
+		pretest_acc = (y_true == preds).mean() 
+		test_acc = (y_true == preds).mean()
+		ind = preds != self.n_classes
+		pred_acc = (y_true[ind] == preds[ind]).mean()
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
+
+		if name is not None:
+			cm = normalize(confusion_matrix(y_true,
+							preds,
+							labels=np.arange(0, max(np.max(y_true)+1, np.max(preds)+1, self.n_classes+1))
+							),
+							normalize='true')
+			cm = np.delete(cm, (self.n_classes), axis=0)
+			if cm.shape[1] > (self.n_classes+1):
+				cm = np.delete(cm, (self.n_classes+1), axis=1)
+			# aps = np.zeros((len(cm), 1))
+			# aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
+			# cm = np.concatenate([cm, aps], axis=1)
+
+			class_labels = list(self.class2num.keys()) +['Novel']
+			cm_ob = ConfusionMatrixPlot(cm, class_labels)
+			factor = max(1, len(cm) // 10)
+			fig = plt.figure(figsize=(10*factor,7*factor))
+			cm_ob.plot(values_format='0.2f', ax=fig.gca())
+
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc))
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -377,6 +416,103 @@ class JindLib:
 		reduced_feats = pca.fit_transform(features)
 		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1, perplexity=50).fit_transform(reduced_feats)
 		return embeddings
+
+	def clustercorrect_TSNE(self, test_gene_mat, predictions, labels=None, vis=True):
+		embedding = self.get_TSNE(test_gene_mat.values)
+		db = DBSCAN(eps=3., min_samples=2).fit(embedding)
+
+		out = predictions
+		predicted_label = out['predictions']
+		df = pd.DataFrame({"ex": embedding[:, 0],
+						"ey": embedding[:, 1],
+						"cellname":test_gene_mat.index,
+						"predictions": predicted_label,
+						"DBSCAN": db.labels_,
+						})
+		if labels is not None:
+			df['labels'] = labels
+
+		ind = df['predictions'] == "Unassigned"
+		max_id = df[ind]['DBSCAN'].value_counts().idxmax()
+		
+		temp = df[ind]['DBSCAN'].values
+		un, counts = np.unique(temp, return_counts=True)
+
+		temp_ = np.sort(df['DBSCAN'].values)
+		un_, counts_ = np.unique(temp_, return_counts=True)
+		if -1 in un_:
+			counts_match = counts_[un+1]
+		else:
+			counts_match = counts_[un]
+
+		args = np.argsort(-counts)
+
+		sorted_counts = counts[args]
+		rep_list = un[args]
+		sorted_counts_ = counts_match[args]
+		sorted_frac = sorted_counts/sorted_counts_
+
+		df['pred_correct'] = df['predictions'].copy()
+		print(sorted_frac)
+		if sorted_frac[0] > 0.3:
+			ind = df['DBSCAN'] == max_id
+			df.loc[ind, 'pred_correct'] = "Unassigned"
+
+		if vis:
+			plt.figure()
+			order = list(set(df['predictions']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue="predictions", data=df, hue_order=order)
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.tight_layout()
+			plt.savefig("{}/TSNE_pred.pdf".format(self.path))
+
+			if labels is not None:
+				plt.figure()
+				order = list(set(df['labels']))
+				order = sorted(order, key=str.casefold)
+
+				g = sns.scatterplot(x="ex", y="ey", hue="labels", data=df, hue_order=order)
+				plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+				plt.tight_layout()
+				plt.savefig("{}/TSNE_true.pdf".format(self.path))
+
+			plt.figure()
+
+			g = sns.scatterplot(x="ex", y="ey", hue="DBSCAN", data=df, legend="full", palette="viridis")
+			# plt.scatter(embedding[:, 0], embedding[:, 1], c=clustering.labels_)
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.tight_layout()
+			plt.savefig("{}/TSNE_DBSCAN.pdf".format(self.path))
+
+			plt.figure()
+			order = list(set(df['pred_correct']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue="pred_correct", data=df, hue_order=order)
+			# plt.scatter(embedding[:, 0], embedding[:, 1], c=clustering.labels_)
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.tight_layout()
+			plt.savefig("{}/TSNE_corrected.pdf".format(self.path))
+
+		if labels is not None:
+			ind = df['predictions'] == df['labels']
+			data_filt = df[~df['predictions'].isin(["Unassigned"])]
+			ind_filt = data_filt['predictions'] == data_filt['labels']
+			ind_filt = ind_filt.values
+			print("Before correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			ind = df['pred_correct'] == df['labels']
+			data_filt = df[~df['pred_correct'].isin(["Unassigned"])]
+			ind_filt = data_filt['pred_correct'] == data_filt['labels']
+			ind_filt = ind_filt.values
+			print("After Correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			self.generate_cfmt(df['pred_correct'], df['labels'], name="testcfmtcorrected.pdf")
+
+		return df
+
 
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
 		features_batch1 = train_gene_mat.values
@@ -657,6 +793,11 @@ class JindLib:
 		self.test_model = model
 		self.test_model.eval()
 
+	def to_pickle(self, name):
+		self.raw_features = None
+		self.reduced_features = None
+		with open('{}/{}'.format(self.path, name), 'wb') as f:
+			pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
 
 def main():

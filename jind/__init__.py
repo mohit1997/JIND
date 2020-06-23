@@ -1,4 +1,3 @@
-from .scRNALib import scRNALib
-from .scRNAvis import scRNAVis
-
-__all__ = ["scRNALib", "scRNAVis"]
+from .jindlib import JindLib
+from .jindvis import JindVis
+__all__ = ["JindLib", "JindVis"]

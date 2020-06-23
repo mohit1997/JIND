@@ -9,6 +9,7 @@
 # Installation
 
 ```bash
+git clone https://github.com/mohit1997/JIND.git
 cd JIND
 python3 -m venv tc
 source tc/bin/activate
@@ -53,7 +54,7 @@ data.to_pickle("data_annotated.pkl")
 ## Run JIND
 ```python
 import numpy as np
-from jind import scRNALib
+from jind import JindLib
 
 # Read Dataset
 data = pd.read_pickle('data_annotated.pkl')
@@ -73,7 +74,7 @@ test_labels = test_data['labels'] # extract labels (Cells X 1)
 test_gene_mat =  test_data.drop(['labels', 'batch'], 1) # extract gene expression matrix (Cells X Genes)
 
 # Create object
-obj = scRNALib(train_gene_mat, train_labels, path="my_results") # all outputs would be saved in "my_results" directory
+obj = JindLib(train_gene_mat, train_labels, path="my_results") # all outputs would be saved in "my_results" directory
 
 # Select top 5000 features by maximum variance
 obj.dim_reduction(5000, 'Var')
@@ -87,4 +88,6 @@ obj.train_classifier(True, train_config, cmat=True) #cmat=True plots and saves t
 predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf") # frac is the outlier fraction filtering underconfident predictions
 # Gives out Test Acc Pre 0.9854 Post 0.9421 Eff 0.9954 (reported on test dataset)
 
-
+# save object for later evaluation
+obj.to_pickle("jindobj.pkl")
+```
