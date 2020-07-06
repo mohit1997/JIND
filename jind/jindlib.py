@@ -193,7 +193,7 @@ class JindLib:
 		model.load_state_dict(torch.load(path, map_location='cpu'))
 		self.model = model
 
-	def predict(self, test_gene_mat, test=False):
+	def predict(self, test_gene_mat, test=False, return_names=False):
 		features = test_gene_mat.values
 		if self.preprocessed:
 			features = np.log(1+features)
@@ -230,7 +230,11 @@ class JindLib:
 				p = model.predict_proba(x)
 				y_pred.append(p.cpu().detach().numpy())
 		y_pred = np.concatenate(y_pred)
-
+		if return_names:
+			preds = np.argmax(y_pred, axis=1)
+			predictions = [self.num2class[i] for i in preds]
+			predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions})
+			return predicted_label
 		return y_pred
 
 	def get_encoding(self, test_gene_mat, test=False):
@@ -266,8 +270,10 @@ class JindLib:
 		with torch.no_grad():
 			for sample in test_loader:
 				x = sample['x'].to(device)
-				
-				p = model.get_repr(x)
+				if test:
+					p, _ = model.get_repr(x)
+				else:
+					p = model.get_repr(x)
 				y_pred.append(p.cpu().detach().numpy())
 		y_pred = np.concatenate(y_pred, axis=0)
 
@@ -302,10 +308,10 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(10*factor,7*factor))
+			fig = plt.figure(figsize=(9*factor,6*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -341,10 +347,11 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(10*factor,7*factor))
+			fig = plt.figure(figsize=(9*factor,6*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)), fontsize=16)
+
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -374,10 +381,10 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(10*factor,7*factor))
+			fig = plt.figure(figsize=(9*factor,6*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc))
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -418,7 +425,9 @@ class JindLib:
 		return embeddings
 
 	def clustercorrect_TSNE(self, test_gene_mat, predictions, labels=None, vis=True):
-		embedding = self.get_TSNE(test_gene_mat.values)
+		# embedding = self.get_TSNE(test_gene_mat.values)
+		encoding = self.get_encoding(test_gene_mat, test=True)
+		embedding = self.get_TSNE(encoding)
 		db = DBSCAN(eps=3., min_samples=2).fit(embedding)
 
 		out = predictions
@@ -454,7 +463,7 @@ class JindLib:
 
 		df['pred_correct'] = df['predictions'].copy()
 		print(sorted_frac)
-		if sorted_frac[0] > 0.3:
+		if sorted_frac[0] > 0.:
 			ind = df['DBSCAN'] == max_id
 			df.loc[ind, 'pred_correct'] = "Unassigned"
 
@@ -514,6 +523,159 @@ class JindLib:
 		return df
 
 
+	def detect_novel(self, train_gene_mat, train_labels, test_gene_mat, predictions, test_labels=None):
+		encoding1 = self.get_encoding(train_gene_mat)
+
+		encoding2 = self.get_encoding(test_gene_mat, test=False)
+		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
+
+		embedding1 = embedding[:len(encoding1)]
+		embedding2 = embedding[len(encoding1):]
+
+		db = DBSCAN(eps=3., min_samples=10).fit(embedding2)
+
+		out = predictions
+		predicted_label = out['predictions']
+		df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+
+		if test_labels is not None:
+			df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+			plt.figure(figsize=(6, 6))		
+			order = list(set(df['Labels']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.title("Labels")
+
+			plt.tight_layout()
+
+			plt.savefig("{}/Comparison_TSNE.pdf".format(self.path))
+
+		encoding2 = self.get_encoding(test_gene_mat, test=True)
+		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
+
+		embedding1 = embedding[:len(encoding1)]
+		embedding2 = embedding[len(encoding1):]
+		
+
+		df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							# 'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+		if test_labels is not None:
+			df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+
+		test_clusters = [str(a) for a in list(db.labels_)]
+		test_clusters.sort()
+
+		sourcec_means = {}
+		source = df[df['Batch'] == "Source"]
+		for label in list(set(train_labels)):
+			k_source = source[source['DBSCAN'] == label]
+			k_mean = np.array([np.mean(k_source['ex']), np.mean(k_source['ey'])])
+			sourcec_means[label] = k_mean
+
+		targetc_means = {}
+		target_mean_list = []
+		target = df[df['Batch'] == "Target"]
+		clusters = list(set(test_clusters))
+		clusters.sort()
+		for label in clusters:
+			# Remove noise cluster labelled as -1
+			if label != '-1':
+				k_target = target[target['DBSCAN'] == label]
+				k_mean = np.array([np.mean(k_target['ex']), np.mean(k_target['ey'])])
+				target_mean_list.append(k_mean)
+				targetc_means[label] = k_mean
+
+		# pdb.set_trace()
+		target_means = np.stack(target_mean_list, axis=0)
+		source2target = {}
+		for label in list(set(train_labels)):
+			k_mean = sourcec_means[label]
+			dist = np.mean((target_means - k_mean)**2, axis=1)
+			ind = np.argmin(dist)
+			source2target[label] = str(ind)
+
+		print(source2target)
+		mapped_clusters = list(source2target.values())
+
+		novel_clusters = set(test_clusters) - {'-1'} - set(mapped_clusters).intersection(set(test_clusters))
+		novel_clusters = [str(a) for a in list(novel_clusters)]
+		print(novel_clusters)
+		
+		df['Novel'] = False
+		df['pred_correct'] = df['predictions']
+
+		# selected = df[((df['batch']=='Target')) & (df['DBSCAN'].isin(list(novel_clusters)))][]
+		df.loc[((df['Batch']=='Target')) & (df['DBSCAN'].isin(novel_clusters)), 'Novel'] = True
+		df.loc[((df['Batch']=='Target')) & (df['DBSCAN'].isin(novel_clusters)), 'pred_correct'] = "Unassigned"
+		print(np.sum(df['Novel']==True), "detected as Novel cells")
+
+
+		if test_labels is not None:
+			plt.figure(figsize=(6, 6))		
+			order = list(set(df['Labels']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.title("Labels")
+
+			plt.tight_layout()
+
+			plt.savefig("{}/Comparison_TSNE_postremoval.pdf".format(self.path))
+
+		plt.figure(figsize=(6, 6))		
+		order = list(set(df['DBSCAN']))
+		order = sorted(order, key=str.casefold)
+
+		g = sns.scatterplot(x="ex", y="ey", hue='DBSCAN', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+		plt.title("Labels")
+
+		plt.tight_layout()
+		plt.savefig("{}/Comparison_TSNE_DBSCAN.pdf".format(self.path))
+
+		dftest = df.loc[(df['Batch'] == 'Target')]
+		if test_labels is not None:
+			ind = dftest['predictions'] == dftest['Labels']
+			data_filt = dftest[~dftest['predictions'].isin(["Unassigned"])]
+			ind_filt = data_filt['predictions'] == data_filt['Labels']
+			ind_filt = ind_filt.values
+			print("Before correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			ind = dftest['pred_correct'] == dftest['Labels']
+			data_filt = dftest[~dftest['pred_correct'].isin(["Unassigned"])]
+			ind_filt = data_filt['pred_correct'] == data_filt['Labels']
+			ind_filt = ind_filt.values
+			print("After Correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			self.generate_cfmt(dftest['pred_correct'], dftest['Labels'], name="testcfmtcorrected.pdf")
+
+		return df.loc[(df['Batch'] == 'Target')]
+
+
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
 		features_batch1 = train_gene_mat.values
 		features_batch2 = test_gene_mat.values
@@ -563,14 +725,14 @@ class JindLib:
 		model_copy.load_state_dict(model1.state_dict())
 		for param in model_copy.parameters():
 			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 256).to(device)
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 512).to(device)
 
 		disc = Discriminator(LDIM).to(device)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-5)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=5e-5, weight_decay=1e-6)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
@@ -607,7 +769,7 @@ class JindLib:
 					# print(np.mean(weights.numpy()))
 					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) + 0.01 * penalty
+					g_loss = sample_loss(disc(batch2_code), valid) + 0.0001 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
@@ -657,7 +819,7 @@ class JindLib:
 					print("Evaluating....")
 					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 
-				if count >= 3:
+				if count >= 5:
 					break
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))

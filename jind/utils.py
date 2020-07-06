@@ -85,7 +85,7 @@ class ConfusionMatrixPlot:
 		self.displabelsy.remove("Unassigned")
 
 	def plot(self, include_values=True, cmap='viridis',
-			 xticks_rotation='vertical', values_format=None, ax=None):
+			 xticks_rotation='vertical', values_format=None, ax=None, fontsize=13):
 
 		import matplotlib.pyplot as plt
 
@@ -113,15 +113,16 @@ class ConfusionMatrixPlot:
 				self.text_[i, j] = ax.text(j, i,
 										   format(cm[i, j], values_format),
 										   ha="center", va="center",
-										   color=color)
+										   color=color, fontsize=fontsize)
 
 		fig.colorbar(self.im_, ax=ax)
 		ax.set(xticks=np.arange(cm.shape[1]),
 			   yticks=np.arange(cm.shape[0]),
-			   xticklabels=self.displabelsx[:cm.shape[1]],
-			   yticklabels=self.displabelsy[:cm.shape[0]],
-			   ylabel="True label",
-			   xlabel="Predicted label")
+			   )
+		ax.set_xticklabels(self.displabelsx[:cm.shape[1]], fontsize=fontsize)
+		ax.set_yticklabels(self.displabelsy[:cm.shape[0]], fontsize=fontsize)
+		ax.set_xlabel(xlabel="Predicted label", fontsize=fontsize+2)
+		ax.set_ylabel(ylabel="True label", fontsize=fontsize+2)
 
 		ax.set_ylim((n_classes - 0.5, -0.5))
 		plt.setp(ax.get_xticklabels(), rotation=xticks_rotation)
