@@ -769,7 +769,7 @@ class JindLib:
 					# print(np.mean(weights.numpy()))
 					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) + 0.0001 * penalty
+					g_loss = sample_loss(disc(batch2_code), valid) + 0.01 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()

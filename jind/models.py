@@ -9,28 +9,27 @@ class Classifier(nn.Module):
 			# nn.Dropout(p=0.8),
 			# nn.Dropout(p=0.3),
 			nn.Linear(inp_dim, headdim),
-			# nn.Dropout(p=0.2),
-			# nn.ReLU(inplace=False),
 			nn.Dropout(p=0.2),
+			# nn.ReLU(inplace=False),
+			# nn.Dropout(p=0.2),
 			# nn.BatchNorm1d(headdim),
 			# nn.ReLU(True),
 			# nn.Tanh(),
 			# nn.ReLU(inplace=False),
 		)
-		self.fc2 = nn.Sequential(
-			# nn.Dropout(p=0.8),
-			nn.Dropout(p=0.1),
-			nn.Linear(inp_dim, n_classes),
-		)
 
 		self.fc = nn.Sequential(
+			# nn.Linear(inp_dim, headdim),
+			# nn.Dropout(p=0.2),
+			nn.ReLU(inplace=False),
+			nn.Linear(headdim, headdim),
 			nn.ReLU(inplace=False),
 			nn.Linear(headdim, n_classes),
 		)
 	
 	def predict(self, x):
 		h = self.fc1(x)
-		y = self.fc(h) #+ self.fc2(x)
+		y = self.fc(h)
 
 		return F.log_softmax(y, dim=1)
 
@@ -110,31 +109,30 @@ class ClassifierBig(nn.Module):
 			nn.Linear(hdim, headdim),
 			# nn.Tanh(),
 		)
+		self.scale = 1 + torch.nn.Parameter(torch.randn(inp_dim))
+		self.bias = torch.nn.Parameter(torch.zeros(inp_dim))
 
 	def predict(self, x):
+		x = x + self.bias
 		rep = self.m1.get_repr(x)
-		out = torch.cat([rep, x], dim=1)
 		h = self.fc2(x) + rep * (1 + self.fc3(x))
-		# h = h.clamp(-1., 1.)
-		y = self.m1.fc(h) #+ self.fc2(x)
+		y = self.m1.fc(h)
 
 		return F.log_softmax(y, dim=1)
 
 	def predict_proba(self, x):
+		x = x + self.bias
 		rep = self.m1.get_repr(x)
-		out = torch.cat([rep, x], dim=1)
 		h = self.fc2(x) + rep * (1 + self.fc3(x))
-		# h = h.clamp(-1., 1.)
-		y = self.m1.fc(h) #+ self.fc2(x)
+		y = self.m1.fc(h)
 
 		return F.softmax(y, dim=1)
 
 	def get_repr(self, x):
+		x = x + self.bias
 		rep = self.m1.get_repr(x)
-		out = torch.cat([rep, x], dim=1)
 		h = self.fc2(x) + rep * (1 + self.fc3(x))
-		# h = h.clamp(-1., 1.)
-		return h, torch.norm(self.fc3(x))
+		return h, torch.mean(torch.norm(self.fc3(x), dim=1)) #+ 0.1*torch.norm(self.fc2(x))
 
 class Discriminator(nn.Module):
 	def __init__(self, dim):
