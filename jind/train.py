@@ -2,18 +2,17 @@ import numpy as np
 import torch, sys, os, pdb
 import pandas as pd
 from torch import optim
-from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap
+from torch.autograd import Variable
+from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap, normalize
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from models import Classifier
+from models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from jind import JindLib
-import seaborn as sns
-from sklearn.cluster import DBSCAN, OPTICS, SpectralClustering, AgglomerativeClustering
-
 plt.rc('font', family='serif')
 
 def main():
@@ -29,7 +28,7 @@ def main():
 	batches.sort()
 	l = int(0.5*len(batches))
 	train_data = data[data['batch'].isin(batches[0:1])].copy()
-	test_data = data[data['batch'].isin(batches[2:3])].copy()
+	test_data = data[data['batch'].isin(batches[1:2])].copy()
 
 	train_labels = train_data['labels']
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
@@ -60,34 +59,23 @@ def main():
 	print("Selected Common Labels:".rjust(25), common_labels)
 	print("Test Labels:".rjust(25), testing_set)
 
-	# test_gene_mat = train_gene_mat * (1 + 5 * np.random.randn(train_gene_mat.shape[1]))
-	# test_labels = train_labels
 
-	with open('pancreas_results/JindLib_objbr.pkl', 'rb') as f:
-		obj = pickle.load(f)
+	obj = JindLib(train_gene_mat, train_labels, path="pancreas_results")
+	# obj.preprocess()
+	obj.dim_reduction(5000, 'Var')
 
-	predicted_label  = obj.predict(test_gene_mat, test=True, return_names=True)
-	assert len(predicted_label) == len(test_labels)
-	filtered_label = obj.detect_novel(train_gene_mat, train_labels, test_gene_mat, predicted_label, test_labels=test_labels)
-
-	test_gene_mat_filtered = test_gene_mat[filtered_label['Novel'] == False]
-	test_labels_filtered = test_labels[filtered_label['Novel']==False]
-
-	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
-					'epochs': 20}
-
-	torch.set_num_threads(25)
-	obj.remove_effect(train_gene_mat, test_gene_mat_filtered, train_config, test_labels_filtered)
-	train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
-					'epochs': 10}
-	obj.ftune(test_gene_mat_filtered, train_config)
-	obj.to_pickle("JindLib_objbrnovel.pkl")
-
-	obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbrnovel.pdf", test=True)
-
+	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
+					'epochs': 15}
+	
+	obj.train_classifier(True, train_config, cmat=True)
+	
+	obj.to_pickle("JindLib_obj.pkl")
+	
+	predicted_label = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf")
 
 
 if __name__ == "__main__":
+	# MODEL_WIDTH = 3000
 	main()
 
 

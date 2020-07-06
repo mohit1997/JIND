@@ -17,9 +17,10 @@ import seaborn as sns
 import pickle
 
 class JindLib:
-	global MODEL_WIDTH, LDIM
+	global MODEL_WIDTH, LDIM, GLDIM
 	MODEL_WIDTH = 1500
 	LDIM = 256
+	GLDIM = 512
 
 	def __init__(self, gene_mat, cell_labels, path):
 		self.class2num = None
@@ -311,7 +312,7 @@ class JindLib:
 			fig = plt.figure(figsize=(9*factor,6*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)), fontsize=16)
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
@@ -350,7 +351,7 @@ class JindLib:
 			fig = plt.figure(figsize=(9*factor,6*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps)), fontsize=16)
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
 
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
@@ -532,7 +533,7 @@ class JindLib:
 		embedding1 = embedding[:len(encoding1)]
 		embedding2 = embedding[len(encoding1):]
 
-		db = DBSCAN(eps=3., min_samples=10).fit(embedding2)
+		db = DBSCAN(eps=3., min_samples=20).fit(embedding2)
 
 		out = predictions
 		predicted_label = out['predictions']
@@ -598,9 +599,9 @@ class JindLib:
 		targetc_means = {}
 		target_mean_list = []
 		target = df[df['Batch'] == "Target"]
-		clusters = list(set(test_clusters))
-		clusters.sort()
-		for label in clusters:
+		test_clusters = list(set(test_clusters) - {'-1'})
+		test_clusters.sort()
+		for label in test_clusters:
 			# Remove noise cluster labelled as -1
 			if label != '-1':
 				k_target = target[target['DBSCAN'] == label]
@@ -611,17 +612,35 @@ class JindLib:
 		# pdb.set_trace()
 		target_means = np.stack(target_mean_list, axis=0)
 		source2target = {}
-		for label in list(set(train_labels)):
+		train_clusters = list(set(train_labels))
+		train_clusters.sort()
+		dist_frame = {}
+		for label in train_clusters:
 			k_mean = sourcec_means[label]
 			dist = np.mean((target_means - k_mean)**2, axis=1)
+			dist_frame[label] = dist
 			ind = np.argmin(dist)
+			print("{}->{}".format(label, ind).rjust(20), dist)
 			source2target[label] = str(ind)
 
 		print(source2target)
-		mapped_clusters = list(source2target.values())
 
+		dist_matrix = pd.DataFrame(dist_frame, index=test_clusters)
+		matrix = dist_matrix.copy()
+		source2target = {}
+		while ((matrix.shape[1] > 0) & (matrix.shape[0] > 0)):
+			idx_min = matrix.idxmin()
+			min_mat = matrix.min()
+			trlabel = min_mat.idxmin()
+			testlabel = idx_min[trlabel]
+			source2target[trlabel] = testlabel
+			matrix = matrix.drop(trlabel, axis=1)
+			matrix = matrix.drop(testlabel, axis=0)
+		
+		print(source2target)
+		mapped_clusters = list(source2target.values())
 		novel_clusters = set(test_clusters) - {'-1'} - set(mapped_clusters).intersection(set(test_clusters))
-		novel_clusters = [str(a) for a in list(novel_clusters)]
+		
 		print(novel_clusters)
 		
 		df['Novel'] = False
@@ -673,7 +692,9 @@ class JindLib:
 
 			self.generate_cfmt(dftest['pred_correct'], dftest['Labels'], name="testcfmtcorrected.pdf")
 
-		return df.loc[(df['Batch'] == 'Target')]
+		frame = df.loc[(df['Batch'] == 'Target')]
+		frame.index = test_gene_mat.index
+		return frame
 
 
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
@@ -725,14 +746,14 @@ class JindLib:
 		model_copy.load_state_dict(model1.state_dict())
 		for param in model_copy.parameters():
 			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, 512).to(device)
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
 
 		disc = Discriminator(LDIM).to(device)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-5)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=1e-6)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
@@ -744,7 +765,7 @@ class JindLib:
 		count = 0
 		for epoch in range(config['epochs']):
 			if len(batch2_loader) < 50:
-				pBar = tqdm(range(50))
+				pBar = tqdm(range(40))
 			else:
 				pBar = tqdm(batch2_loader)
 			model1.eval()
@@ -767,9 +788,9 @@ class JindLib:
 					batch2_code, penalty = model2.get_repr(batch2_inps)
 					g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
-					weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
-					sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) + 0.01 * penalty
+					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
+					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					g_loss = sample_loss(disc(batch2_code), valid) + 0.001 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					g_loss.backward()
 					optimizer_G.step()
@@ -819,7 +840,7 @@ class JindLib:
 					print("Evaluating....")
 					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 
-				if count >= 5:
+				if count >= 3:
 					break
 
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
@@ -888,7 +909,7 @@ class JindLib:
 			param.requires_grad = True
 
 		# model = model_copy
-		model = ClassifierBig(model_copy, X_train.shape[1], LDIM, 256).to(device)
+		model = ClassifierBig(model_copy, X_train.shape[1], LDIM, GLDIM).to(device)
 
 		model.load_state_dict(self.test_model.to(device).state_dict())
 

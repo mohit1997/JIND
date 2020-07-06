@@ -11,6 +11,8 @@ class Classifier(nn.Module):
 			nn.Linear(inp_dim, headdim),
 			nn.Dropout(p=0.2),
 			# nn.ReLU(inplace=False),
+			# nn.Linear(headdim, headdim),
+			# nn.ReLU(inplace=False),
 			# nn.Dropout(p=0.2),
 			# nn.BatchNorm1d(headdim),
 			# nn.ReLU(True),

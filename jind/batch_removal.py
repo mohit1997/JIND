@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch, sys, os, pdb
 from torch import optim
 from utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap
@@ -9,12 +10,13 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
-from .jindlib import JindLib
+from jind import JindLib
+plt.rc('font', family='serif')
 
 def main():
 	import pickle
-	with open('data/blood_annotated.pkl', 'rb') as f:
-		data = pickle.load(f)
+	# data = pd.read_pickle('data/pancreas_integrated.pkl')
+	data = pd.read_pickle('data/pancreas_annotatedbatched.pkl')
 	cell_ids = np.arange(len(data))
 	np.random.seed(0)
 	# np.random.shuffle(cell_ids)
@@ -30,13 +32,17 @@ def main():
 	# train_gene_mat =  train_data.drop(['labels', 'batch'], 1)
 
 	test_labels = test_data['labels']
+	# print(set(test_labels))
 	# test_gene_mat =  test_data.drop(['labels', 'batch'], 1)
 
 	common_labels = list(set(train_labels) & set(test_labels))
+	common_labels.sort()
 
-	train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-	test_data = data[data['batch'].isin(batches[1:2])].copy()
-	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+	common_labels = ['alpha', 'beta', 'delta', 'gamma', 'ductal', 'endothelial']
+
+	train_data = train_data[train_data['labels'].isin(common_labels[:-2])].copy()
+	test_data = data[data['batch'].isin(batches[2:3])].copy()
+	test_data = test_data[test_data['labels'].isin(common_labels[:-1])].copy()
 	# test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 	train_labels = train_data['labels']
@@ -49,27 +55,29 @@ def main():
 	common_labels.sort()
 	testing_set = list(set(test_labels))
 	testing_set.sort()
-	print("Selected Common Labels", common_labels)
-	print("Test Labels", testing_set)
+	print("Selected Common Labels:".rjust(25), common_labels)
+	print("Test Labels:".rjust(25), testing_set)
 
 
-	with open('dendrites_results/scRNALib_obj.pkl', 'rb') as f:
+	with open('pancreas_results/JindLib_obj.pkl', 'rb') as f:
 		obj = pickle.load(f)
 
-	train_config = {'seed': 0, 'batch_size': 64, 'cuda': False,
-					'epochs': 15}
+	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
+					'epochs': 20}
 
 	torch.set_num_threads(25)
+	# test_gene_mat = train_gene_mat * (1 + 5*np.random.randn(train_gene_mat.shape[1])) + 2*np.random.randn(train_gene_mat.shape[1])
+	# test_labels = train_labels
 	obj.remove_effect(train_gene_mat, test_gene_mat, train_config, test_labels)
 	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
 	train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
 					'epochs': 10}
-	obj.ftune(test_gene_mat, train_config)
-	predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True)
-	obj.raw_features = None
-	obj.reduced_features = None
-	with open('blood_results/scRNALib_objbr.pkl', 'wb') as f:
-		pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+	# obj.ftune(test_gene_mat, train_config)
+	# predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True)
+	
+	obj.to_pickle("JindLib_objbr.pkl")
+	# with open('pancreas_results/scRNALib_objbr.pkl', 'wb') as f:
+	# 	pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
 
