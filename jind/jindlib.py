@@ -15,6 +15,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.cluster import DBSCAN, OPTICS, SpectralClustering, AgglomerativeClustering
 import seaborn as sns
 import pickle
+from sklearn.svm import OneClassSVM
+from sklearn.ensemble import IsolationForest
 
 class JindLib:
 	global MODEL_WIDTH, LDIM, GLDIM
@@ -309,7 +311,7 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(9*factor,6*factor))
+			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
 			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
@@ -348,7 +350,7 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel'] + ['AP']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(9*factor,6*factor))
+			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
 			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
@@ -382,7 +384,7 @@ class JindLib:
 			class_labels = list(self.class2num.keys()) +['Novel']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
 			factor = max(1, len(cm) // 10)
-			fig = plt.figure(figsize=(9*factor,6*factor))
+			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
 			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc), fontsize=16)
@@ -523,17 +525,138 @@ class JindLib:
 
 		return df
 
+	def detect_outlier(self, train_gene_mat, train_labels, test_gene_mat, predictions, test_labels=None):
+		# encoding1 = self.get_encoding(train_gene_mat)
 
-	def detect_novel(self, train_gene_mat, train_labels, test_gene_mat, predictions, test_labels=None, test=False):
-		encoding1 = self.get_encoding(train_gene_mat)
-
-		encoding2 = self.get_encoding(test_gene_mat, test=False)
+		# encoding2 = self.get_encoding(test_gene_mat, test=False)
+		encoding1 = train_gene_mat.values
+		encoding2 = test_gene_mat.values
+		
 		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
 
 		embedding1 = embedding[:len(encoding1)]
 		embedding2 = embedding[len(encoding1):]
 
-		db = DBSCAN(eps=3., min_samples=20).fit(embedding2)
+		db = DBSCAN(eps=5., min_samples=15).fit(embedding2)
+
+		clf = IsolationForest(n_estimators=100, contamination=0.02).fit(embedding1)
+		detections = clf.predict(embedding2)
+
+		out = predictions
+		predicted_label = out['predictions']
+		df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'Detector': [1]*(len(encoding1)) + list(detections),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+
+		if test_labels is not None:
+			df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Detector': [1]*(len(encoding1)) + list(detections),
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+			plt.figure(figsize=(6, 6))		
+			order = list(set(df['Labels']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.title("Labels")
+
+			plt.tight_layout()
+
+			plt.savefig("{}/Comparison_TSNE.pdf".format(self.path))
+
+		df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							# 'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Detector': [1]*(len(encoding1)) + list(detections),
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+		if test_labels is not None:
+			df = pd.DataFrame({'ex': embedding[:, 0],
+							'ey': embedding[:, 1],
+							'Labels': list(train_labels) + list(test_labels),
+							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
+							'Detector': [1]*(len(encoding1)) + list(detections),
+							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+							'predictions': list(train_labels) + list(predicted_label)
+							})
+		
+		df['Novel'] = False
+		df['pred_correct'] = df['predictions']
+
+		# selected = df[((df['batch']=='Target')) & (df['DBSCAN'].isin(list(novel_clusters)))][]
+		df.loc[((df['Batch']=='Target')) & (df['Detector'].isin([-1])), 'Novel'] = True
+		df.loc[((df['Batch']=='Target')) & (df['Detector'].isin([-1])), 'pred_correct'] = "Unassigned"
+		print(np.sum(df['Novel']==True), "detected as Novel cells")
+
+
+		if test_labels is not None:
+			plt.figure(figsize=(6, 6))		
+			order = list(set(df['Labels']))
+			order = sorted(order, key=str.casefold)
+
+			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.title("Labels")
+
+			plt.tight_layout()
+
+			plt.savefig("{}/Comparison_TSNE_postremoval.pdf".format(self.path))
+
+		plt.figure(figsize=(6, 6))		
+		order = list(set(df['Detector']))
+		order = sorted(order)
+
+		g = sns.scatterplot(x="ex", y="ey", hue='Detector', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"], legend='full')#, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+		plt.title("Labels")
+
+		plt.tight_layout()
+		plt.savefig("{}/Comparison_TSNE_Detector.pdf".format(self.path))
+
+		dftest = df.loc[(df['Batch'] == 'Target')]
+		if test_labels is not None:
+			ind = dftest['predictions'] == dftest['Labels']
+			data_filt = dftest[~dftest['predictions'].isin(["Unassigned"])]
+			ind_filt = data_filt['predictions'] == data_filt['Labels']
+			ind_filt = ind_filt.values
+			print("Before correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			ind = dftest['pred_correct'] == dftest['Labels']
+			data_filt = dftest[~dftest['pred_correct'].isin(["Unassigned"])]
+			ind_filt = data_filt['pred_correct'] == data_filt['Labels']
+			ind_filt = ind_filt.values
+			print("After Correction Accuracy Post {:.4f} Eff {:.4f}".format(np.mean(ind), np.mean(ind_filt)))
+
+			self.generate_cfmt(dftest['pred_correct'], dftest['Labels'], name="testcfmtcorrected.pdf")
+
+		frame = df.loc[(df['Batch'] == 'Target')]
+		frame.index = test_gene_mat.index
+		return frame
+
+	def detect_novel(self, train_gene_mat, train_labels, test_gene_mat, predictions, test_labels=None, test=False):
+		encoding1 = self.get_encoding(train_gene_mat)
+
+		encoding2 = self.get_encoding(test_gene_mat, test=False)
+		# encoding1 = train_gene_mat.values
+		# encoding2 = test_gene_mat.values
+
+		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
+
+		embedding1 = embedding[:len(encoding1)]
+		embedding2 = embedding[len(encoding1):]
+
+		db = DBSCAN(eps=5., min_samples=15).fit(embedding2)
 
 		out = predictions
 		predicted_label = out['predictions']
