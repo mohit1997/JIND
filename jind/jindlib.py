@@ -17,6 +17,7 @@ import seaborn as sns
 import pickle
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
+from scipy import optimize
 
 class JindLib:
 	global MODEL_WIDTH, LDIM, GLDIM
@@ -424,7 +425,7 @@ class JindLib:
 	def get_TSNE(self, features):
 		pca = PCA(n_components=50)
 		reduced_feats = pca.fit_transform(features)
-		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1, perplexity=50).fit_transform(reduced_feats)
+		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1, perplexity=50, random_state=43).fit_transform(reduced_feats)
 		return embeddings
 
 	def clustercorrect_TSNE(self, test_gene_mat, predictions, labels=None, vis=True):
@@ -435,8 +436,8 @@ class JindLib:
 
 		out = predictions
 		predicted_label = out['predictions']
-		df = pd.DataFrame({"ex": embedding[:, 0],
-						"ey": embedding[:, 1],
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+						'tSNE_y': embedding[:, 1],
 						"cellname":test_gene_mat.index,
 						"predictions": predicted_label,
 						"DBSCAN": db.labels_,
@@ -475,7 +476,7 @@ class JindLib:
 			order = list(set(df['predictions']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue="predictions", data=df, hue_order=order)
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue="predictions", data=df, hue_order=order)
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.tight_layout()
 			plt.savefig("{}/TSNE_pred.pdf".format(self.path))
@@ -485,14 +486,14 @@ class JindLib:
 				order = list(set(df['labels']))
 				order = sorted(order, key=str.casefold)
 
-				g = sns.scatterplot(x="ex", y="ey", hue="labels", data=df, hue_order=order)
+				g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue="labels", data=df, hue_order=order)
 				plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 				plt.tight_layout()
 				plt.savefig("{}/TSNE_true.pdf".format(self.path))
 
 			plt.figure()
 
-			g = sns.scatterplot(x="ex", y="ey", hue="DBSCAN", data=df, legend="full", palette="viridis")
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue="DBSCAN", data=df, legend="full", palette="viridis")
 			# plt.scatter(embedding[:, 0], embedding[:, 1], c=clustering.labels_)
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.tight_layout()
@@ -502,7 +503,7 @@ class JindLib:
 			order = list(set(df['pred_correct']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue="pred_correct", data=df, hue_order=order)
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue="pred_correct", data=df, hue_order=order)
 			# plt.scatter(embedding[:, 0], embedding[:, 1], c=clustering.labels_)
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.tight_layout()
@@ -544,8 +545,8 @@ class JindLib:
 
 		out = predictions
 		predicted_label = out['predictions']
-		df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
 							'Detector': [1]*(len(encoding1)) + list(detections),
@@ -553,8 +554,8 @@ class JindLib:
 							})
 
 		if test_labels is not None:
-			df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+			df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Detector': [1]*(len(encoding1)) + list(detections),
@@ -565,7 +566,7 @@ class JindLib:
 			order = list(set(df['Labels']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.title("Labels")
 
@@ -573,8 +574,8 @@ class JindLib:
 
 			plt.savefig("{}/Comparison_TSNE.pdf".format(self.path))
 
-		df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							# 'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Detector': [1]*(len(encoding1)) + list(detections),
@@ -582,8 +583,8 @@ class JindLib:
 							'predictions': list(train_labels) + list(predicted_label)
 							})
 		if test_labels is not None:
-			df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+			df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Detector': [1]*(len(encoding1)) + list(detections),
@@ -605,7 +606,7 @@ class JindLib:
 			order = list(set(df['Labels']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.title("Labels")
 
@@ -617,7 +618,7 @@ class JindLib:
 		order = list(set(df['Detector']))
 		order = sorted(order)
 
-		g = sns.scatterplot(x="ex", y="ey", hue='Detector', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"], legend='full')#, size='|Match|', size_order=['miss', 'correct'])
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Detector', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"], legend='full')#, size='|Match|', size_order=['miss', 'correct'])
 		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 		plt.title("Labels")
 
@@ -660,15 +661,15 @@ class JindLib:
 
 		out = predictions
 		predicted_label = out['predictions']
-		df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
 							'predictions': list(train_labels) + list(predicted_label)
 							})
 
 		if test_labels is not None:
-			df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+			df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
@@ -678,13 +679,25 @@ class JindLib:
 			order = list(set(df['Labels']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.title("Labels")
 
 			plt.tight_layout()
 
-			plt.savefig("{}/Comparison_TSNE.pdf".format(self.path))
+			plt.savefig("{}/Comparison_TSNE_labelled.pdf".format(self.path))
+
+		plt.figure(figsize=(4, 4))		
+		order = list(set(df['Batch']))
+		order = sorted(order, key=str.casefold)
+
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Batch', data=df, hue_order=order) #, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend()
+		plt.title("Batch Plot")
+
+		plt.tight_layout()
+
+		plt.savefig("{}/Comparison_TSNE.pdf".format(self.path))
 
 		if test:
 			encoding2 = self.get_encoding(test_gene_mat, test=test)
@@ -694,16 +707,16 @@ class JindLib:
 		embedding2 = embedding[len(encoding1):]
 		
 
-		df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							# 'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
 							'predictions': list(train_labels) + list(predicted_label)
 							})
 		if test_labels is not None:
-			df = pd.DataFrame({'ex': embedding[:, 0],
-							'ey': embedding[:, 1],
+			df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
 							'Labels': list(train_labels) + list(test_labels),
 							'DBSCAN': list(train_labels) + [str(a) for a in list(db.labels_)],
 							'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
@@ -717,7 +730,7 @@ class JindLib:
 		source = df[df['Batch'] == "Source"]
 		for label in list(set(train_labels)):
 			k_source = source[source['DBSCAN'] == label]
-			k_mean = np.array([np.mean(k_source['ex']), np.mean(k_source['ey'])])
+			k_mean = np.array([np.mean(k_source['tSNE_x']), np.mean(k_source['tSNE_y'])])
 			sourcec_means[label] = k_mean
 
 		targetc_means = {}
@@ -729,13 +742,12 @@ class JindLib:
 			# Remove noise cluster labelled as -1
 			if label != '-1':
 				k_target = target[target['DBSCAN'] == label]
-				k_mean = np.array([np.mean(k_target['ex']), np.mean(k_target['ey'])])
+				k_mean = np.array([np.mean(k_target['tSNE_x']), np.mean(k_target['tSNE_y'])])
 				target_mean_list.append(k_mean)
 				targetc_means[label] = k_mean
 
-		# pdb.set_trace()
 		target_means = np.stack(target_mean_list, axis=0)
-		source2target = {}
+		# source2target = {}
 		train_clusters = list(set(train_labels))
 		train_clusters.sort()
 		dist_frame = {}
@@ -743,26 +755,19 @@ class JindLib:
 			k_mean = sourcec_means[label]
 			dist = np.mean((target_means - k_mean)**2, axis=1)
 			dist_frame[label] = dist
-			ind = np.argmin(dist)
-			print("{}->{}".format(label, ind).rjust(20), dist)
-			source2target[label] = str(ind)
+			# ind = np.argmin(dist)
+			# print("{}->{}".format(label, ind).rjust(20), dist)
+			# source2target[label] = str(ind)
 
-		print(source2target)
+		# print(source2target)
 
 		dist_matrix = pd.DataFrame(dist_frame, index=test_clusters)
-		matrix = dist_matrix.copy()
-		source2target = {}
-		while ((matrix.shape[1] > 0) & (matrix.shape[0] > 0)):
-			idx_min = matrix.idxmin()
-			min_mat = matrix.min()
-			trlabel = min_mat.idxmin()
-			testlabel = idx_min[trlabel]
-			source2target[trlabel] = testlabel
-			matrix = matrix.drop(trlabel, axis=1)
-			matrix = matrix.drop(testlabel, axis=0)
+
+		mat = dist_matrix.values
+		rows, cols = optimize.linear_sum_assignment(mat)
+		mapped_clusters = list(dist_matrix.index[rows])
 		
-		print(source2target)
-		mapped_clusters = list(source2target.values())
+		print(mapped_clusters, "->", list(dist_matrix.columns[cols]))
 		novel_clusters = set(test_clusters) - {'-1'} - set(mapped_clusters).intersection(set(test_clusters))
 		
 		print(novel_clusters)
@@ -781,19 +786,31 @@ class JindLib:
 			order = list(set(df['Labels']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="ex", y="ey", hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+			g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
 			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 			plt.title("Labels")
 
 			plt.tight_layout()
 
-			plt.savefig("{}/Comparison_TSNE_postremoval.pdf".format(self.path))
+			plt.savefig("{}/Comparison_TSNE_postremoval_labelled.pdf".format(self.path))
+
+		plt.figure(figsize=(4, 4))		
+		order = list(set(df['Batch']))
+		order = sorted(order, key=str.casefold)
+
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Batch', data=df, hue_order=order)#, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend()
+		plt.title("Batch Plot")
+
+		plt.tight_layout()
+
+		plt.savefig("{}/Comparison_TSNE_postremoval.pdf".format(self.path))
 
 		plt.figure(figsize=(6, 6))		
 		order = list(set(df['DBSCAN']))
 		order = sorted(order, key=str.casefold)
 
-		g = sns.scatterplot(x="ex", y="ey", hue='DBSCAN', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='DBSCAN', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"])#, size='|Match|', size_order=['miss', 'correct'])
 		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 		plt.title("Labels")
 
