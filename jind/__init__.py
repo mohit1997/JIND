@@ -1,3 +1,4 @@
 from .jindlib import JindLib
 from .jindvis import JindVis
-__all__ = ["JindLib", "JindVis"]
+from .SVMReject import SVMReject
+__all__ = ["JindLib", "JindVis", "SVMReject"]

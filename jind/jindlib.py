@@ -65,14 +65,14 @@ class JindLib:
 		dim_size = num_features
 		self.reduce_method = method
 
-		if method == 'PCA':
+		if method.lower() == 'pca':
 			print('Performing PCA ...')
 			self.pca = PCA(n_components=dim_size)
 			self.reduced_features = self.pca.fit_transform(self.raw_features)
 			if save_as is not None:
 				np.save('{}_{}'.format(save_as, method), self.reduced_features)
 
-		elif method == 'Var':
+		elif method.lower() == 'var':
 			print('Variance based reduction ...')
 			self.variances = np.argsort(-np.var(self.raw_features, axis=0))[:dim_size]
 			self.reduced_features = self.raw_features[:, self.variances]
@@ -283,7 +283,7 @@ class JindLib:
 
 		return y_pred
 
-	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False):
+	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False, return_log=False):
 		y_pred = self.predict(test_gene_mat, test=test)
 		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
 		if frac != 0:
@@ -294,7 +294,8 @@ class JindLib:
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
+		filtered = 1 - np.mean(ind)
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -315,13 +316,15 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered, np.mean(aps[:self.n_classes])), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
 		predictions = [self.num2class[i] for i in preds]
 		predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions, "labels":test_labels})
 
+		if return_log:
+			return predicted_label, 'Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered)
 		return predicted_label
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
@@ -333,7 +336,8 @@ class JindLib:
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
+		filtered = 1 - np.mean(ind)
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -354,7 +358,7 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, np.mean(aps[:self.n_classes])), fontsize=16)
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered, np.mean(aps[:self.n_classes])), fontsize=16)
 
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
@@ -367,7 +371,8 @@ class JindLib:
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f}'.format(pretest_acc, test_acc, pred_acc))
+		filtered = 1 - np.mean(ind)
+		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -388,7 +393,7 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f}'.format(pretest_acc, test_acc, pred_acc), fontsize=16)
+			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
