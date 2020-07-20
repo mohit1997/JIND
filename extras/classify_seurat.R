@@ -17,10 +17,12 @@ library(reshape)
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
 
-parser <- ArgumentParser(description='Process some integers')
-parser$add_argument('--train_path', default="datasets/human_blood_integrated_01/train.pkl", type="character",
+start_time <- Sys.time()
+
+parser <- ArgumentParser(description='Run Seurat Classifier')
+parser$add_argument('--train_path', default="datasets/pancreas_integrated_01/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="datasets/human_blood_integrated_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="datasets/pancreas_integrated_01/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -42,6 +44,10 @@ for(i in 1:nrow(metadata1))
 {
   old = metadata1[i,"labels"]
   new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("lab.%s", new)
   metadata1[i,"labels"] = new
 }
 
@@ -56,6 +62,10 @@ for(i in 1:nrow(metadata2))
 {
   old = metadata2[i,"labels"]
   new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("lab.%s", new)
   metadata2[i,"labels"] = new
 }
 
@@ -99,7 +109,9 @@ path = sprintf("%s/seurat", dirname(args$train_path))
 dir.create(path, showWarnings = FALSE)
 
 file = sprintf("%s/test.log", path)
-cat(sprintf("Test Accuracy %f", mean(query$predicted.id == query$labels)), file = file)
+end_time <- Sys.time()
+cat(sprintf("Test Accuracy %f \n", mean(query$predicted.id == query$labels)), file = file)
+cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
 output_path = sprintf("%s/seurat_matrix.pkl", path)
 py_save_object(predicted, output_path)

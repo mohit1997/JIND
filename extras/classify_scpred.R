@@ -14,10 +14,12 @@ library(reticulate)
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
 
-parser <- ArgumentParser(description='Process some integers')
-parser$add_argument('--train_path', default="datasets/human_blood_integrated_01/train.pkl", type="character",
+start_time <- Sys.time()
+
+parser <- ArgumentParser(description='Run scPred')
+parser$add_argument('--train_path', default="datasets/pancreas_integrated_01/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="datasets/human_blood_integrated_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="datasets/pancreas_integrated_01/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -35,8 +37,8 @@ eigenDecompose2 <- function(expData, n = 10, pseudo = TRUE, returnData = TRUE, s
   zeroVar <- apply(expData, 2, var) == 0
   if(any(zeroVar)){
     expData <- expData[,!zeroVar]
-    message(paste0(sum(zeroVar), " following genes were removed as their variance is zero across all cells:"))
-    cat(paste0(names(zeroVar), collapse = "\n"), "\n", sep = "")
+    # message(paste0(sum(zeroVar), " following genes were removed as their variance is zero across all cells:"))
+    # cat(paste0(names(zeroVar), collapse = "\n"), "\n", sep = "")
   }
   
   # Call prcomp() function
@@ -91,6 +93,10 @@ for(i in 1:nrow(metadata1))
 {
   old = metadata1[i,"labels"]
   new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("lab.%s", new)
   metadata1[i,"labels"] = new
 }
 
@@ -104,6 +110,10 @@ for(i in 1:nrow(metadata2))
 {
   old = metadata2[i,"labels"]
   new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("lab.%s", new)
   metadata2[i,"labels"] = new
 }
 
@@ -162,7 +172,11 @@ path = sprintf("%s/scPred", dirname(args$train_path))
 dir.create(path, showWarnings = FALSE)
 
 file = sprintf("%s/test.log", path)
-cat(sprintf("Test Accuracy %f w.f. %f filtered %f", raw, eff, filtered), file = file)
+
+end_time <- Sys.time()
+print(sprintf("Test Accuracy %f w.f. %f filtered %f", raw, eff, filtered))
+cat(sprintf("Test Accuracy %f w.f. %f filtered %f \n ", raw, eff, filtered), file = file)
+cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
 output_path = sprintf("%s/scPred_matrix.pkl", path)
 py_save_object(pred1, output_path)

@@ -6,6 +6,7 @@ import collections
 import tensorflow as tf
 import argparse
 import timeit
+from datetime import datetime
 run_time = timeit.default_timer()
 from tensorflow.python.framework import ops
 
@@ -30,7 +31,7 @@ parser.add_argument("-op", "--output_probability", type=bool,
                     help="Output the probabilities for each cell being the cell types in the training data (default: False)", default=False)
 
 # Get common genes, normalize  and scale the sets
-def scale_sets(sets):
+def scale_sets(sets, isint=False):
     # input -- a list of all the sets to be scaled
     # output -- scaled sets
     common_genes = set(sets[0].index)
@@ -42,12 +43,13 @@ def scale_sets(sets):
         sets[i] = sets[i].loc[common_genes,]
         sep_point.append(sets[i].shape[1])
     total_set = np.array(pd.concat(sets, axis=1, sort=False), dtype=np.float32)
-    # total_set = np.divide(total_set, np.sum(total_set, axis=0, keepdims=True)) * 10000
-    # total_set = np.log2(total_set+1)
-    # expr = np.sum(total_set, axis=1)
-    # total_set = total_set[np.logical_and(expr >= np.percentile(expr, 1), expr <= np.percentile(expr, 99)),]
-    # cv = np.std(total_set, axis=1) / np.mean(total_set, axis=1)
-    # total_set = total_set[np.logical_and(cv >= np.percentile(cv, 1), cv <= np.percentile(cv, 99)),]
+    if isint:
+        # total_set = np.divide(total_set, np.sum(total_set, axis=0, keepdims=True)) * 10000
+        total_set = np.log2(total_set+1)
+    #     expr = np.sum(total_set, axis=1)
+    #     total_set = total_set[np.logical_and(expr >= np.percentile(expr, 1), expr <= np.percentile(expr, 99)),]
+    #     cv = np.std(total_set, axis=1) / np.mean(total_set, axis=1)
+    #     total_set = total_set[np.logical_and(cv >= np.percentile(cv, 1), cv <= np.percentile(cv, 99)),]
     for i in range(len(sets)):
         sets[i] = total_set[:, sum(sep_point[:(i+1)]):sum(sep_point[:(i+2)])]
     return sets
@@ -306,6 +308,7 @@ def model(X_train, Y_train, X_test, starting_learning_rate = 0.0001, num_epochs 
 
 
 if __name__ == '__main__':
+    startTime = datetime.now()
     args = parser.parse_args()
     train_batch = pd.read_pickle(args.train_path)
     test_batch = pd.read_pickle(args.test_path)
@@ -320,13 +323,18 @@ if __name__ == '__main__':
     test_mat = test_batch.drop(lname, axis=1).transpose()
     test_labels = test_batch[lname]
 
+    mat = train_mat.values
+    mat_round = np.rint(mat)
+    error = np.mean(np.abs(mat - mat_round))
+    isint = error == 0
+
     common_labels = list(set(train_labels) & set(test_labels))
 
     # print(train_mat, train_label)
     # sys.exit()
     barcode = list(test_mat.columns)
     nt = len(set(train_labels))
-    train_mat, test_mat = scale_sets([train_mat, test_mat])
+    train_mat, test_mat = scale_sets([train_mat, test_mat], isint=isint)
     # train_mat = train_mat.values
     # test_mat =  test_mat.values
     type_to_label_dict = type_to_label_dict(train_labels)
@@ -363,9 +371,10 @@ if __name__ == '__main__':
     eff = np.mean(predicted_label.loc[index, 'labels'] == predicted_label.loc[index, 'predictions'])
 
     predicted_label = predicted_label.set_index("cellname")
-    
+
     log = "Test Acc {:.4f} Eff {:4f} Filtered {:4f}".format(raw_acc, eff, filtered)
     print(log)
     with open("{}/test.log".format(path), "w") as text_file:
         print("{}".format(log), file=text_file)
+        print("Runtime {}".format(datetime.now() - startTime), file=text_file)
     predicted_label.to_pickle("{}/ACTINN_assignment.pkl".format(path))

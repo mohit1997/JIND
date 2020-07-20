@@ -5,6 +5,7 @@ import argparse
 from jind import SVMReject
 from matplotlib import pyplot as plt
 import argparse
+from datetime import datetime
 
 np.random.seed(0)
 
@@ -17,6 +18,8 @@ parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
 
 def main():
+	startTime = datetime.now()
+
 	args = parser.parse_args()
 	train_batch = pd.read_pickle(args.train_path)
 	test_batch = pd.read_pickle(args.test_path)
@@ -31,7 +34,14 @@ def main():
 	path = os.path.dirname(args.train_path) + "/SVMReject"
 
 	obj = SVMReject(train_mat, train_labels, path=path)
-	# obj.preprocess()
+	
+	mat = train_mat.values
+	mat_round = np.rint(mat)
+	error = np.mean(np.abs(mat - mat_round))
+	if error == 0:
+		print("Data is int")
+		obj.preprocess()
+
 	obj.dim_reduction(5000, 'Var')
 
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
@@ -45,6 +55,7 @@ def main():
 	
 	with open("{}/test.log".format(path), "w") as text_file:
 		print("{}".format(log), file=text_file)
+		print("Runtime {}".format(datetime.now() - startTime), file=text_file)
 	predicted_label.to_pickle("{}/SVMReject_assignment.pkl".format(path))
 
 
