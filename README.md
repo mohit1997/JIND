@@ -81,7 +81,7 @@ obj.dim_reduction(5000, 'Var')
 
 # Training hyperparameters
 train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False, 'epochs': 10}
-obj.train_classifier(True, train_config, cmat=True) #cmat=True plots and saves the validation confusion matrix
+obj.train_classifier(train_config, cmat=True) #cmat=True plots and saves the validation confusion matrix
 # Gives out Test Acc Pre 0.9889 Post 0.9442 Eff 0.9961 (reported on validation dataset)
 
 # Evaluate
