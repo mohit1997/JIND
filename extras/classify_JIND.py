@@ -45,7 +45,7 @@ def main():
 	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
 					'epochs': 15}
 	
-	obj.train_classifier(True, train_config, cmat=True)
+	obj.train_classifier(config=train_config, cmat=True)
 	
 	obj.to_pickle("JindLib_obj.pkl")
 	

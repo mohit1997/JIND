@@ -17,7 +17,7 @@ py_config()
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run scPred')
-parser$add_argument('--train_path', default="datasets/pancreas_integrated_01/train.pkl", type="character",
+parser$add_argument('--train_path', default="datasets/mouse_integrated_01/train.pkl", type="character",
                     help='path to train data frame with labels')
 parser$add_argument('--test_path', default="datasets/pancreas_integrated_01/test.pkl", type="character",
                     help='path to test data frame with labels')
@@ -83,6 +83,32 @@ lname = args$column
 batch1 = pd$read_pickle(args$train_path)
 
 batch2 = pd$read_pickle(args$test_path)
+
+r1 = rownames(batch1)
+for(i in 1:nrow(batch1)) 
+{
+  old = r1[i]
+  new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("cell%d.%s",i, "train")
+  r1[i] = new
+}
+rownames(batch1) = r1
+
+r2 = rownames(batch2)
+for(i in 1:nrow(batch2)) 
+{
+  old = r2[i]
+  new = gsub(" ", ".", old, fixed = TRUE)
+  new = gsub("-", ".", new, fixed = TRUE)
+  new = gsub("_", ".", new, fixed = TRUE)
+  new = gsub("/", ".", new, fixed = TRUE)
+  new = sprintf("cell%d.%s",i, "test")
+  r2[i] = new
+}
+rownames(batch2) = r2
 
 mat1 = batch1[,!(names(batch1) %in% c(lname))]
 metadata1 = as.matrix(batch1[lname])

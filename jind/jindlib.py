@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from .models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, silhouette_score
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -85,7 +85,10 @@ class JindLib:
 		self.scaler = scaler
 
 
-	def train_classifier(self, use_red, config, cmat=True):
+	def train_classifier(self, config=None, cmat=True):
+		if config is None:
+			config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
+					'epochs': 15}
 		if use_red:
 			if self.reduced_features is None:
 				print("Please run obj.dim_reduction() or use use_red=False")
@@ -323,7 +326,7 @@ class JindLib:
 		predictions = [self.num2class[i] for i in preds]
 		predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions, "labels":test_labels})
 		predicted_label = predicted_label.set_index("cellname")
-		
+
 		if return_log:
 			return predicted_label, 'Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered)
 		return predicted_label
@@ -433,6 +436,55 @@ class JindLib:
 		reduced_feats = pca.fit_transform(features)
 		embeddings = TSNE(n_components=2, verbose=1, n_jobs=-1, perplexity=50, random_state=43).fit_transform(reduced_feats)
 		return embeddings
+
+	def get_correl_score(self, features, labels):
+		class_types = np.sort(np.unique(labels))
+		num_features = features.shape[1]
+
+		means = []
+		for label in class_types:
+			cluster_mean = np.mean(features[labels == label].reshape(-1, num_features), axis=0, keepdims=True)
+			means.append(cluster_mean)
+
+		means = np.concatenate(means, axis=0)
+
+		cof = np.corrcoef(means) - np.eye(len(class_types))
+
+		maxes = np.max(cof, axis=0)
+
+		return np.mean(maxes)
+
+
+	def get_complexity(self):
+		if self.reduced_features is not None:
+			features = self.reduced_features
+		else:
+			features = self.raw_features
+
+		labels = self.labels
+
+		score_corr = self.get_correl_score(features, labels)
+
+		embedding = self.get_TSNE(features)
+
+		score_tsne_sil = silhouette_score(embedding, labels)
+
+		score_raw_sil = silhouette_score(features, labels)
+
+		log = "Correl Score {:.4f} tSNE_silhoutte {:.4f} Raw_silhoutte {:.4f}".format(score_corr, score_tsne_sil, score_raw_sil)
+
+		print(log)
+
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+							'tSNE_y': embedding[:, 1],
+							'Labels': list(labels),
+							})
+
+		return df, log
+
+		
+
+
 
 	def clustercorrect_TSNE(self, test_gene_mat, predictions, labels=None, vis=True):
 		# embedding = self.get_TSNE(test_gene_mat.values)
@@ -1113,10 +1165,11 @@ class JindLib:
 				# print('Model improved')
 				best_val_acc = val_acc
 				torch.save(model.state_dict(), self.path+"/bestbr_ftune.pth")
+				val_stats = {'pred': y_pred, 'true': y_true}
 
 		if cmat:
 			# Plot validation confusion matrix
-			self.plot_cfmt(self.val_stats['pred'], self.val_stats['true'], 0.05, 'val_cfmtftune.pdf')
+			self.plot_cfmt(val_stats['pred'], val_stats['true'], 0.05, 'val_cfmtftune.pdf')
 
 		# Finally keep the best model
 		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
