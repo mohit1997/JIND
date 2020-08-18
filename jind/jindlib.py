@@ -9,6 +9,7 @@ from tqdm import tqdm
 from .models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, silhouette_score
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -18,6 +19,7 @@ import pickle
 from sklearn.svm import OneClassSVM
 from sklearn.ensemble import IsolationForest
 from scipy import optimize
+import umap
 
 class JindLib:
 	global MODEL_WIDTH, LDIM, GLDIM
@@ -89,10 +91,8 @@ class JindLib:
 		if config is None:
 			config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
 					'epochs': 15}
-		if use_red:
-			if self.reduced_features is None:
-				print("Please run obj.dim_reduction() or use use_red=False")
-				sys.exit()
+		
+		if self.reduced_features is not None:
 			features = self.reduced_features
 		else:
 			features = self.raw_features
@@ -324,7 +324,12 @@ class JindLib:
 			plt.savefig('{}/{}'.format(self.path, name))
 
 		predictions = [self.num2class[i] for i in preds]
-		predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions, "labels":test_labels})
+		raw_predictions = [self.num2class[i] for i in np.argmax(y_pred, axis=1)]
+		predicted_label = pd.DataFrame({"cellname": test_gene_mat.index,
+										"raw_predictions": raw_predictions,
+										"predictions": predictions,
+										"labels": test_labels})
+
 		predicted_label = predicted_label.set_index("cellname")
 
 		if return_log:
@@ -454,6 +459,26 @@ class JindLib:
 
 		return np.mean(maxes)
 
+	def get_KNN_score(self, features, labels):
+		neigh = KNeighborsClassifier(n_neighbors=3, n_jobs=-1)
+
+		# pca = PCA(n_components=10)
+		# reduced_feats = pca.fit_transform(features)
+		
+		fit = umap.UMAP(
+			n_components=20,
+		)
+		
+		reduced_feats = fit.fit_transform(features)
+
+		neigh.fit(reduced_feats, labels)
+
+		acc = neigh.score(reduced_feats, labels)
+		probs_ = np.mean(neigh.predict_proba(reduced_feats)[np.arange(len(features)), labels])
+
+		return acc, probs_
+
+
 
 	def get_complexity(self):
 		if self.reduced_features is not None:
@@ -469,9 +494,11 @@ class JindLib:
 
 		score_tsne_sil = silhouette_score(embedding, labels)
 
-		score_raw_sil = silhouette_score(features, labels)
+		# score_raw_sil = silhouette_score(features, labels)
 
-		log = "Correl Score {:.4f} tSNE_silhoutte {:.4f} Raw_silhoutte {:.4f}".format(score_corr, score_tsne_sil, score_raw_sil)
+		score_knn_acc, score_knn_prob = self.get_KNN_score(features, labels)
+
+		log = "Correl Score {:.4f} tSNE_silhoutte {:.4f} KNN Score Hard {:.4f} Soft {:.4f}".format(score_corr, score_tsne_sil, score_knn_acc, score_knn_prob)
 
 		print(log)
 
