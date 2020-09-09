@@ -791,6 +791,7 @@ class JindLib:
 		embedding1 = embedding[:len(encoding1)]
 		embedding2 = embedding[len(encoding1):]
 		
+		stacked_encoding = np.concatenate([encoding1, encoding2], axis=0)
 
 		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
 							'tSNE_y': embedding[:, 1],
@@ -813,21 +814,25 @@ class JindLib:
 
 		sourcec_means = {}
 		source = df[df['Batch'] == "Source"]
+		stacked_encoding_source = stacked_encoding[df['Batch'] == "Source"]
 		for label in list(set(train_labels)):
 			k_source = source[source['DBSCAN'] == label]
-			k_mean = np.array([np.mean(k_source['tSNE_x']), np.mean(k_source['tSNE_y'])])
+			# k_mean = np.array([np.mean(k_source['tSNE_x']), np.mean(k_source['tSNE_y'])])
+			k_mean = np.mean(stacked_encoding_source[source['DBSCAN'] == label], axis=0)
 			sourcec_means[label] = k_mean
 
 		targetc_means = {}
 		target_mean_list = []
 		target = df[df['Batch'] == "Target"]
+		stacked_encoding_target = stacked_encoding[df['Batch'] == "Target"]
 		test_clusters = list(set(test_clusters) - {'-1'})
 		test_clusters.sort()
 		for label in test_clusters:
 			# Remove noise cluster labelled as -1
 			if label != '-1':
 				k_target = target[target['DBSCAN'] == label]
-				k_mean = np.array([np.mean(k_target['tSNE_x']), np.mean(k_target['tSNE_y'])])
+				# k_mean = np.array([np.mean(k_target['tSNE_x']), np.mean(k_target['tSNE_y'])])
+				k_mean = np.mean(stacked_encoding_target[target['DBSCAN'] == label], axis=0)
 				target_mean_list.append(k_mean)
 				targetc_means[label] = k_mean
 
@@ -847,6 +852,7 @@ class JindLib:
 		# print(source2target)
 
 		dist_matrix = pd.DataFrame(dist_frame, index=test_clusters)
+		print(dist_matrix)
 
 		mat = dist_matrix.values
 		rows, cols = optimize.linear_sum_assignment(mat)
