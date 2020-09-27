@@ -344,8 +344,10 @@ class JindVis:
 
 	def plot_2d(self, method="tsne", test=False):
 		out = self.obj.evaluate(self.mat, self.labels, frac=0.05, name=None, test=test)
+		raw_preds = list([self.num2class[i] for i in np.argmax(self.y_pred, axis=1)])
 		preds = list(out['predictions'])
 		df = pd.DataFrame({'Predictions': preds,
+						'Raw Predictions': raw_preds,
 						'Labels': self.labels,
 						"preds_labels": ["{}_{}".format(i, j) for i,j in zip(preds, list(self.labels))]
 						})
@@ -355,10 +357,14 @@ class JindVis:
 
 			check = list(df['Predictions'] == df['Labels'])
 			marker_list = ['correct' if i else 'miss' for i in check]
-			marker_list = ['Unassigned' if j == "Unassigned" else i for i, j in zip(marker_list, preds)]
-			df['|Assessment|'] = marker_list
-			size_list = ["correct" if i else "miss" for i in check]
-			df['|Match|'] = size_list
+			marker_list = ['Unassigned' if j == "Unassigned" else "Assigned" for i, j in zip(marker_list, preds)]
+			df['|Assignment|'] = marker_list
+
+			check = list(df['Raw Predictions'] == df['Labels'])
+			size_list = ["Correct" if i else "Miss" for i in check]
+			df['|Evaluation|'] = size_list
+
+			df = df.sort_values('|Assignment|')
 
 			color_list=['r' if i else 'b' for i in check]
 
@@ -382,20 +388,24 @@ class JindVis:
 
 			plt.figure(figsize=(16, 8))
 			plt.subplot(1, 2, 1)			
-			order = list(set(df['Labels']))
+			order = list(set(df['Raw Predictions']).union(set(["Unassigned"])))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Labels', data=df, hue_order=order, style='|Assessment|', style_order=["correct", "miss", "Unassigned"], size='|Match|', size_order=['miss', 'correct'])
-			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-			plt.title("Labels")
+			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order, size='|Assignment|', size_order=['Unassigned', 'Assigned'], sizes=(20, 80))
+			# plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			handles, labels = g.get_legend_handles_labels()
+			g.get_legend().remove()
+			plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=3, markerscale=2., fontsize=10)
+			plt.title("Predictions", fontsize= 30)
 			
 			plt.subplot(1, 2, 2)
-			order = list(set(df['Predictions']))
+			order = list(set(df['Raw Predictions']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order, style='|Assessment|', style_order=["correct", "miss", "Unassigned"], size='|Match|', size_order=['miss', 'correct'])
-			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-			plt.title("Predictions")
+			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Raw Predictions', data=df, hue_order=order, markers=["o", "X"], style='|Evaluation|', style_order=["Correct", "Miss"], size='|Assignment|', size_order=['Unassigned', 'Assigned'], sizes=(20, 80))
+			# plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=3, markerscale=2., fontsize=10)
+			plt.title("Raw Predictions", fontsize= 30)
 			plt.tight_layout()
 
 			plt.savefig("{}/{}_pred_true.pdf".format(self.dir, method))
