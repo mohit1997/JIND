@@ -368,12 +368,27 @@ class JindVis:
 
 			color_list=['r' if i else 'b' for i in check]
 
-			plt.figure()
-			order = list(set(df['Predictions']))
+			plt.figure(figsize=(10, 7))
+			order = list(set(df['Raw Predictions']))
 			order = sorted(order, key=str.casefold)
 
-			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order)
-			plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Raw Predictions', data=df, hue_order=order, markers=["o", "X"], style='|Evaluation|', style_order=["Correct", "Miss"], size='|Assignment|', size_order=['Unassigned', 'Assigned'], sizes=(20, 80))
+			plt.legend(loc='lower left', bbox_to_anchor=(1.01, 0.),fancybox=True, shadow=True, ncol=1, markerscale=2., fontsize=20)
+			plt.title("Predictions", fontsize= 30)
+			plt.tight_layout()
+			plt.savefig("{}/{}_rawpred.pdf".format(self.dir, method))
+
+			plt.figure(figsize=(10, 7))
+			order = list(set(df['Raw Predictions']).union(set(["Unassigned"])))
+			order = sorted(order, key=str.casefold)
+
+			palette = sns.color_palette(n_colors=len(order))
+			palette[-1] = (0.09019607843137255, 0.7450980392206863, 0.8117647058823529) #Blue
+			# print(palette)
+
+			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order, palette=palette, size='|Assignment|', size_order=['Unassigned', 'Assigned'], sizes=(20, 80))
+			plt.legend(loc='lower left', bbox_to_anchor=(1.01, 0.),fancybox=True, shadow=True, ncol=1, markerscale=2., fontsize=20)
+			plt.title("Predictions", fontsize= 30)
 			plt.tight_layout()
 			plt.savefig("{}/{}_pred.pdf".format(self.dir, method))
 
@@ -393,8 +408,6 @@ class JindVis:
 
 			g = sns.scatterplot(x="{}_x".format(method), y="{}_y".format(method), hue='Predictions', data=df, hue_order=order, size='|Assignment|', size_order=['Unassigned', 'Assigned'], sizes=(20, 80))
 			# plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-			handles, labels = g.get_legend_handles_labels()
-			g.get_legend().remove()
 			plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=3, markerscale=2., fontsize=10)
 			plt.title("Predictions", fontsize= 30)
 			

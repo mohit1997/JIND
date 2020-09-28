@@ -929,6 +929,50 @@ class JindLib:
 		return frame
 
 
+	def vis_latent(self, train_gene_mat, train_labels, test_gene_mat, test_labels, test=False):
+		encoding1 = self.get_encoding(train_gene_mat)
+
+		encoding2 = self.get_encoding(test_gene_mat, test=test)
+		# encoding1 = train_gene_mat.values
+		# encoding2 = test_gene_mat.values
+
+		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
+
+		embedding1 = embedding[:len(encoding1)]
+		embedding2 = embedding[len(encoding1):]
+
+		df = pd.DataFrame({'tSNE_x': embedding[:, 0],
+						'tSNE_y': embedding[:, 1],
+						'Labels': list(train_labels) + list(test_labels),
+						'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
+						})
+		
+		plt.figure(figsize=(6, 6))		
+		order = list(set(df['Labels']))
+		order = sorted(order, key=str.casefold)
+
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+		plt.title("Labels")
+
+		plt.tight_layout()
+
+		plt.savefig("{}/Comparison_TSNE_labelled_{}.pdf".format(self.path, test))
+
+		plt.figure(figsize=(6, 6))		
+		order = list(set(df['Batch']))
+		order = sorted(order, key=str.casefold)
+
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Batch', data=df, hue_order=order) #, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend()
+		plt.title("Batch Plot")
+
+		plt.tight_layout()
+
+		plt.savefig("{}/Comparison_TSNE_{}.pdf".format(self.path, test))
+		return
+
+
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
 		features_batch1 = train_gene_mat.values
 		features_batch2 = test_gene_mat.values
@@ -1207,6 +1251,13 @@ class JindLib:
 		# Finally keep the best model
 		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
 		self.test_model = model
+		self.test_model.eval()
+
+	def set_test_model(self, model_type="BR"):
+		if model_type=="BR":
+			self.test_model.load_state_dict(torch.load(self.path+"/best_br.pth"))
+		elif model_type=="BR_ftune":
+			self.test_model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
 		self.test_model.eval()
 
 	def to_pickle(self, name):
