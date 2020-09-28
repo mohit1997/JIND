@@ -28,9 +28,15 @@ def main():
 	pred = columns[1]
 	label = "labels"
 
-	truecelltypes = list(set(metadata[raw]))
-	truecelltypes.sort()
+	metadata[label] = metadata[label].cat.set_categories(set(metadata[label]))
+	# print((metadata[label].value_counts()))
+
+	# truecelltypes = list(set(metadata[label]))
+	truecelltypes = list(metadata[label].value_counts().index)
+	# truecelltypes.sort()
 	predcelltypes = truecelltypes + ["Unassigned"]
+
+	print(list(metadata[label].value_counts().index))
 
 	labels = list(metadata[label])
 	preds = list(metadata[pred])
@@ -39,18 +45,7 @@ def main():
 	print(cfmt)
 	rows, cols = np.nonzero(cfmt)
 
-	colors = [
-		'#1f77b4',  # muted blue
-		'#ff7f0e',  # safety orange
-		'#2ca02c',  # cooked asparagus green
-		'#d62728',  # brick red
-		'#9467bd',  # muted purple
-		'#8c564b',  # chestnut brown
-		'#e377c2',  # raspberry yogurt pink
-		'#7f7f7f',  # middle gray
-		'#bcbd22',  # curry yellow-green
-		'#17becf'   # blue-teal
-	]
+	print(rows, cols)
 
 	colors = ['rgb(31, 119, 180)', 'rgb(255, 127, 14)',
 				'rgb(44, 160, 44)', 'rgb(214, 39, 40)',
@@ -65,6 +60,9 @@ def main():
 			width=500,
 			height=500,
 			font_family="Times New Roman",
+			# title_text="Pancreas Barron16 - Segerstolpe16",
+			title_text="PBMC Zheng17",
+			title_x=0.5,
 			font_size=16,
 
 			xaxis= go.layout.XAxis(linecolor = 'black',
@@ -79,7 +77,7 @@ def main():
 				l=40,
 				r=40,
 				b=10,
-				t=10,
+				t=40,
 				pad = 4
 			),
 			annotations=[
@@ -122,6 +120,8 @@ def main():
 								label = truecelltypes + predcelltypes,
 								color = colors[:len(truecelltypes)] + colors[:len(predcelltypes)]
 								),
+								# arrangement="snap",
+								# orientation="h",
 								link = dict(
 											source = rows, # indices correspond to labels, eg A1, A2, A2, B1, ...
 											target = cols + len(truecelltypes),

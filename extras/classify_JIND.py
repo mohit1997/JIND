@@ -47,7 +47,6 @@ def main():
 	
 	obj.train_classifier(config=train_config, cmat=True)
 	
-	obj.to_pickle("JindLib_obj.pkl")
 	
 	predicted_label1, log1 = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt.pdf", return_log=True)
 	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
@@ -60,6 +59,8 @@ def main():
 					'epochs': 10}
 	obj.ftune(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)
+	
+	obj.to_pickle("JindLib_obj.pkl")
 	
 	with open("{}/test.log".format(path), "w") as text_file:
 		print("{}".format(log1), file=text_file)

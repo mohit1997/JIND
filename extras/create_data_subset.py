@@ -22,7 +22,11 @@ def main():
 
 	data = pd.read_pickle(arguments.data)
 	print(set(list(data['labels'])))
-	data = data[data['labels'].isin(['CD4 T cell', 'CD8 T cell'])]
+	
+	source_types = ['alpha', 'beta', 'gamma', 'delta']
+	target_types = ['alpha', 'beta', 'gamma', 'delta', 'acinar']
+
+	data = data[data['labels'].isin(target_types)]
 	# sys.exit()
 	if arguments.traintestbatch == "random":
 		path = "datasets/{}_{}".format(arguments.name, arguments.traintestbatch)
@@ -59,8 +63,12 @@ def main():
 
 		print(common_labels)
 		
-		train_data = train_data[train_data['labels'].isin(common_labels)].copy()
-		test_data = test_data[test_data['labels'].isin(common_labels)].copy()
+		if source_types is not None:
+			train_data = train_data[train_data['labels'].isin(source_types)].copy()
+			test_data = test_data[test_data['labels'].isin(target_types)].copy()
+		else:
+			train_data = train_data[train_data['labels'].isin(common_labels)].copy()
+			test_data = test_data[test_data['labels'].isin(common_labels)].copy()
 
 		train_gene_mat =  train_data.drop(['batch'], 1, errors='ignore')
 		test_gene_mat =  test_data.drop(['batch'], 1, errors='ignore')
