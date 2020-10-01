@@ -946,13 +946,13 @@ class JindLib:
 						'Labels': list(train_labels) + list(test_labels),
 						'Batch': ['Source']*(len(encoding1)) + ['Target']*len(encoding2),
 						})
-		
-		plt.figure(figsize=(6, 6))		
+
+		plt.figure(figsize=(8, 6))		
 		order = list(set(df['Labels']))
 		order = sorted(order, key=str.casefold)
 
-		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"]) #, size='|Match|', size_order=['miss', 'correct'])
-		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"], s=80) #, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=15, markerscale=2.)
 		plt.title("Labels")
 
 		plt.tight_layout()
@@ -963,8 +963,8 @@ class JindLib:
 		order = list(set(df['Batch']))
 		order = sorted(order, key=str.casefold)
 
-		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Batch', data=df, hue_order=order) #, size='|Match|', size_order=['miss', 'correct'])
-		plt.legend()
+		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Batch', data=df, hue_order=order, s=80) #, size='|Match|', size_order=['miss', 'correct'])
+		plt.legend(fontsize=15, markerscale=2.)
 		plt.title("Batch Plot")
 
 		plt.tight_layout()
@@ -1119,6 +1119,9 @@ class JindLib:
 				if count >= 3:
 					break
 
+		if not os.path.isfile(self.path+"/best_br.pth"):
+			torch.save(model2.state_dict(), self.path+"/best_br.pth")
+			
 		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
 		self.test_model = model2
 
