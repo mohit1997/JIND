@@ -1,6 +1,6 @@
 # JIND
 
-![image](/figs/JINDOverviewIllustration.pdf)
+![alt text](/figs/JINDOverviewIllustration.png)
 
 
 # Requirements
