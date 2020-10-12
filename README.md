@@ -24,7 +24,7 @@ pip install -e .
 
 # Examples
 
-## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb))
+## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb)
 
 ## Executing JIND
 ```python
@@ -55,7 +55,7 @@ obj.train_classifier(train_config, cmat=True) #cmat=True plots and saves the val
 obj.to_pickle("jindobj.pkl")
 
 
-# Evaluate before JIND Batch Alignment
+# For evaluation
 predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf", test=False) # frac is the outlier fraction filtering underconfident predictions
 
 # For just prediction
@@ -63,10 +63,9 @@ predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test
 ```
 
 ```python
+# JIND Batch Alignment
 train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
 				'epochs': 20}
-
-# JIND Batch Alignment
 obj.remove_effect(train_mat, test_mat, train_config)
 
 # For evaluation
@@ -75,13 +74,14 @@ predicted_label  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt
 # For just prediction
 predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
 
-train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
-				'epochs': 10}
+
 ```
 
 ```python
 
 # JIND +
+train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
+				'epochs': 10}
 obj.ftune(test_mat, train_config)
 
 # For evaluation
