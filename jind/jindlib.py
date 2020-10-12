@@ -286,13 +286,27 @@ class JindLib:
 
 		return y_pred
 
-	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False, return_log=False):
+	def evaluate(self, test_gene_mat, test_labels=None, frac=0.05, name=None, test=False, return_log=False):
 		y_pred = self.predict(test_gene_mat, test=test)
-		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
 		if frac != 0:
 			preds = self.filter_pred(y_pred, frac)
 		else:
 			preds = np.argmax(y_pred, axis=1)
+		
+		if test_labels is None:
+			predictions = [self.num2class[i] for i in preds]
+			raw_predictions = [self.num2class[i] for i in np.argmax(y_pred, axis=1)]
+			predicted_label = pd.DataFrame({"cellname": test_gene_mat.index,
+											"raw_predictions": raw_predictions,
+											"predictions": predictions,
+											})
+
+			predicted_label = predicted_label.set_index("cellname")
+
+			return predicted_label
+
+
+		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
