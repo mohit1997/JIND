@@ -32,7 +32,7 @@ wget ftp://ngs.sanger.ac.uk/production/teichmann/BBKNN/PBMC.merged.h5ad
 
 ## Process h5ad file (Required only for h5ad datasets)
 
-Note: This code can be executed in an ipython terminal or jupyter notebook (avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb))
+Note: This code can be executed in an ipython terminal or jupyter notebook (avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb))
 
 ```python
 # Import Libraries
