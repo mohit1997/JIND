@@ -1,5 +1,8 @@
 # JIND
 
+![image][figs/JINDOverviewIllustration.pdf]
+
+
 # Requirements
 1. Python3
 2. Numpy
