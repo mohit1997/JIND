@@ -6,11 +6,10 @@
 <!-- ![alt text](/figs/JINDOverviewIllustration.png?raw=true) -->
 
 
-# Requirements
-1. Python3
-2. Numpy
-3. Pandas
-4. Pytorch
+# Prerequisites
+1. Linux or macOS
+2. Python
+3. CPU or NVIDIA GPU + CUDA CuDNN
 
 # Installation
 
