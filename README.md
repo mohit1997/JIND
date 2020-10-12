@@ -1,6 +1,6 @@
 # JIND
 
-<img src="/figs/JINDOverviewIllustration.pdf" width="900px"/>
+<img src="/figs/JINDOverviewIllustration-1.png" width="900px"/>
 <!-- ![alt text](/figs/JINDOverviewIllustration.png?raw=true) -->
 
 
