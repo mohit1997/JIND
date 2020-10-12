@@ -28,7 +28,8 @@ pip install -e .
 
 ## Executing JIND
 
-### Data
+### 1. Data
+---
 ```python
 from jind import JindLib
 
@@ -42,7 +43,8 @@ test_labels = target_batch['labels'] # extract cell-types (Cells X 1)
 test_gene_mat =  target_batch.drop(['labels'], 1) # extract gene expression matrix (Cells X Genes)
 ```
 
-### Create JIND Object and Train
+### 2. Create JIND Object and Train
+---
 ```python
 # Create object
 obj = JindLib(train_gene_mat, train_labels, path="my_results") # all outputs would be saved in "my_results" directory
@@ -66,7 +68,8 @@ predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test
 ```
 
 
-### JIND Asymmetric Alignment
+### 3. JIND Asymmetric Alignment
+---
 ```python
 # JIND Batch Alignment
 train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
@@ -82,7 +85,8 @@ predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test
 
 ```
 
-### JIND+ Self Training
+### 4. JIND+ Self Training
+---
 ```python
 
 # JIND +
