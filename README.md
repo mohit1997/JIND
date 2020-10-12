@@ -22,78 +22,71 @@ source tc/bin/activate
 pip install -e .
 ```
 
+# Examples
 
-# Documentation
+## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb))
 
-## Download Dataset
-```bash
-wget ftp://ngs.sanger.ac.uk/production/teichmann/BBKNN/PBMC.merged.h5ad
-```
-
-## Process h5ad file (Required only for h5ad datasets)
-
-Note: This code can be executed in an ipython terminal or jupyter notebook (avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb))
-
+## Executing JIND
 ```python
-# Import Libraries
-import scanpy as sc 
-import pandas as pd
-import numpy as np
-```
-
-```python
-adata = sc.read("./PBMC.merged.h5ad")
-adata # This prints all the attributes (columns) present in this object. We need to identify which one corresponds to cell type and batch (if available)
-```
-
-```python
-data = adata.to_df() # Extracts gene expression matrix
-data['batch'] = adata.obs['batch']
-data['labels'] = adata.obs['Cell type']
-```
-
-```python
-# Save pandas data frame to pickle file (This can be read in R as well)
-data.to_pickle("data_annotated.pkl")
-```
-
-## Run JIND
-```python
-import numpy as np
 from jind import JindLib
 
-# Read Dataset
-data = pd.read_pickle('data_annotated.pkl')
+source_batch # Contains source batch gene expression matrix and cell types
+target_batch # Contains target batch gene expression matrix and cell types
 
-cell_ids = np.arange(len(data))
-np.random.seed(0)
+train_labels = source_batch['labels'] # extract cell-types (Cells X 1)
+train_gene_mat =  source_batch.drop(['labels'], 1) # extract gene expression matrix (Cells X Genes)
 
-np.random.shuffle(cell_ids)
-l = int(0.7*len(cell_ids))
+test_labels = target_batch['labels'] # extract cell-types (Cells X 1)
+test_gene_mat =  target_batch.drop(['labels'], 1) # extract gene expression matrix (Cells X Genes)
+```
 
-train_data = data.iloc[cell_ids[:l]]
-train_labels = train_data['labels'] # extract labels (Cells X 1)
-train_gene_mat =  train_data.drop(['labels', 'batch'], 1) # extract gene expression matrix (Cells X Genes)
-
-test_data = data.iloc[cell_ids[l:]]
-test_labels = test_data['labels'] # extract labels (Cells X 1)
-test_gene_mat =  test_data.drop(['labels', 'batch'], 1) # extract gene expression matrix (Cells X Genes)
-
+```python
 # Create object
 obj = JindLib(train_gene_mat, train_labels, path="my_results") # all outputs would be saved in "my_results" directory
 
-# Select top 5000 features by maximum variance
+# Select top 5000 genes by maximum variance (all genes are used if less than 5000 are avialable)
 obj.dim_reduction(5000, 'Var')
 
 # Training hyperparameters
 train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False, 'epochs': 10}
 obj.train_classifier(train_config, cmat=True) #cmat=True plots and saves the validation confusion matrix
-# Gives out Test Acc Pre 0.9889 Post 0.9442 Eff 0.9961 (reported on validation dataset)
-
-# Evaluate
-predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf") # frac is the outlier fraction filtering underconfident predictions
-# Gives out Test Acc Pre 0.9854 Post 0.9421 Eff 0.9954 (reported on test dataset)
 
 # save object for later evaluation
 obj.to_pickle("jindobj.pkl")
+
+
+# Evaluate before JIND Batch Alignment
+predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf", test=False) # frac is the outlier fraction filtering underconfident predictions
+
+# For just prediction
+predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test=False)
+```
+
+```python
+train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
+				'epochs': 20}
+
+# JIND Batch Alignment
+obj.remove_effect(train_mat, test_mat, train_config)
+
+# For evaluation
+predicted_label  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
+
+# For just prediction
+predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
+
+train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
+				'epochs': 10}
+```
+
+```python
+
+# JIND +
+obj.ftune(test_mat, train_config)
+
+# For evaluation
+predicted_label  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
+
+# For just prediction
+predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
 ```
