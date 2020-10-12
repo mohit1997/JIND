@@ -8,7 +8,7 @@
 
 # Prerequisites
 1. Linux or macOS
-2. Python
+2. Python 3.6 or + (tested on 3.6.8)
 3. CPU or NVIDIA GPU + CUDA CuDNN
 
 # Installation
@@ -98,4 +98,7 @@ predicted_label  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt
 
 # For just prediction
 predicted_label  = obj.evaluate(test_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
+
+# Save the predictions for downstream tasks
+predicted_label.to_csv("labels.csv")
 ```
