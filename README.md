@@ -96,7 +96,7 @@ obj.remove_effect(train_gene_mat, test_gene_mat, train_config)
 
 # For evaluation
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
-# frac: outlier fraction (&theta) filtering underconfident predictions
+# frac: outlier fraction (theta) filtering underconfident predictions
 # test: False when using JIND without batch alignment
 # name: file name dor saving the confusion matrix. Confusion matrix is not plotted if None provided.
 # predicted_label has three columns: cellname, raw_predictions (before rejection) and predictions (after rejection). If test_labels are provided, then labels are added as a column in the output.
