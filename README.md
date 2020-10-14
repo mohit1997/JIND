@@ -99,14 +99,14 @@ train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
 				'epochs': 20}
 obj.remove_effect(train_gene_mat, test_gene_mat, train_config)
 
-# For evaluation
+# For evaluation (test labels are needed in this case)
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
 # frac: outlier fraction (theta) filtering underconfident predictions
 # test: False when using JIND without batch alignment
 # name: file name dor saving the confusion matrix. Confusion matrix is not plotted if None provided.
 # predicted_label has three columns: cellname, raw_predictions (before rejection) and predictions (after rejection). If test_labels are provided, then labels are added as a column in the output.
 
-# For just prediction
+# For just prediction (test labels are not needed in this case)
 predicted_label  = obj.evaluate(test_gene_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
 
 # Save the predictions for downstream tasks
@@ -117,7 +117,7 @@ predicted_label.to_csv("labels.csv")
 ---
 ```python
 
-# JIND +
+# JIND + (this step must be performed after batch alignment)
 train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
 				'epochs': 10}
 obj.ftune(test_gene_mat, train_config)
