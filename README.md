@@ -47,6 +47,14 @@ test_gene_mat =  target_batch.drop(['labels'], 1) # extract gene expression matr
 # Create object
 obj = JindLib(train_gene_mat, train_labels, path="my_results") # all outputs would be saved in "my_results" directory
 
+# Log transform the dataset if the data is integral
+mat = train_gene_mat.values
+mat_round = np.rint(mat)
+error = np.mean(np.abs(mat - mat_round))
+if error == 0:
+	print("Data is int")
+	obj.preprocess()
+
 # Select top 5000 genes by maximum variance (all genes are used if less than 5000 are avialable)
 obj.dim_reduction(5000, 'Var')
 
@@ -61,10 +69,6 @@ obj.train_classifier(train_config, cmat=True) #cmat=True plots and saves the val
 
 # save object for later evaluation
 obj.to_pickle("jindobj.pkl")
-
-# For evaluation
-predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt.pdf", test=False)
-
 ```
 
 
@@ -75,11 +79,12 @@ predictions = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmt
 
 path = "my_results"
 
-with open('{}/JindLib_obj.pkl'.format(path), 'rb') as f:
+with open('{}/jindobj.pkl'.format(path), 'rb') as f:
 	obj = pickle.load(f)
 
 obj.raw_features = train_gene_mat.values
 
+# Log transform the dataset if gene expression matrix is integral
 mat = train_gene_mat.values
 mat_round = np.rint(mat)
 error = np.mean(np.abs(mat - mat_round))
