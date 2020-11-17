@@ -23,10 +23,13 @@ def main():
 	data = pd.read_pickle(arguments.data)
 	print(set(list(data['labels'])))
 	
-	source_types = ['alpha', 'beta', 'gamma', 'delta']
-	target_types = ['alpha', 'beta', 'gamma', 'delta', 'acinar']
+	source_types = ['alpha', 'beta', 'gamma', 'delta', 'acinar']
+	target_types = ['alpha', 'beta', 'gamma']
 
-	data = data[data['labels'].isin(target_types)]
+	common_types = list(set(source_types) | set(target_types))
+	print(common_types)
+
+	data = data[data['labels'].isin(common_types)]
 	# sys.exit()
 	if arguments.traintestbatch == "random":
 		path = "datasets/{}_{}".format(arguments.name, arguments.traintestbatch)

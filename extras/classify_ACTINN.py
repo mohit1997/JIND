@@ -3,6 +3,8 @@ import pandas as pd
 import sys, os
 import math
 import collections
+import warnings
+warnings.filterwarnings('ignore',category=FutureWarning)
 import tensorflow as tf
 import argparse
 import timeit
@@ -334,7 +336,7 @@ if __name__ == '__main__':
     # sys.exit()
     barcode = list(test_mat.columns)
     nt = len(set(train_labels))
-    train_mat, test_mat = scale_sets([train_mat, test_mat], isint=isint)
+    train_mat, test_mat = scale_sets([train_mat, test_mat], isint=False)
     # train_mat = train_mat.values
     # test_mat =  test_mat.values
     type_to_label_dict = type_to_label_dict(train_labels)
@@ -362,13 +364,16 @@ if __name__ == '__main__':
     predicted_label = []
     for i in range(len(test_predict)):
         predicted_label.append(label_to_type_dict[test_predict[i]])
-    predicted_label = pd.DataFrame({"cellname":barcode, "predictions": predicted_label, "labels": list(test_labels), "max_prob": list(max_prob)})
+    predicted_label = pd.DataFrame({"cellname":barcode, "raw_predictions": predicted_label, "labels": list(test_labels), "max_prob": list(max_prob)})
 
+    predicted_label['predictions'] = predicted_label['raw_predictions']
     index = predicted_label['max_prob'] > 0.9
+    predicted_label.loc[~index, 'predictions'] = "Unassigned"
+
     filtered = 1 - np.mean(index)
 
-    raw_acc = np.mean(predicted_label['labels'] == predicted_label['predictions'])
-    eff = np.mean(predicted_label.loc[index, 'labels'] == predicted_label.loc[index, 'predictions'])
+    raw_acc = np.mean(predicted_label['labels'] == predicted_label['raw_predictions'])
+    eff = np.mean(predicted_label.loc[index, 'labels'] == predicted_label.loc[index, 'raw_predictions'])
 
     predicted_label = predicted_label.set_index("cellname")
 

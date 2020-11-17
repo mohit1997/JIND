@@ -12,7 +12,7 @@ from sklearn.metrics import confusion_matrix
 np.random.seed(0)
 
 parser = argparse.ArgumentParser(description='RUN JIND')
-parser.add_argument('--file', default="datasets/human_blood_integrated_01/train.pkl", type=str,
+parser.add_argument('--file', default="datasets/human_blood_integrated_01/JIND/JIND_assignmentbrftune.pkl", type=str,
 					help='path to train data frame with labels')
 
 def main():
@@ -78,19 +78,19 @@ def main():
 								mirror = True),
 
 			margin=go.layout.Margin(
-				l=40,
-				r=40,
+				l=100,
+				r=100,
 				b=10,
-				t=40,
+				t=100,
 				pad = 4
 			),
 			annotations=[
 						dict(
-							x=-0.08,
-							y=0.5,
+							x=-0.2,
+							y=1.1,
 							showarrow=False,
 							text="Cell Annotations",
-							textangle=-90,
+							textangle=0,
 							xref="paper",
 							yref="paper",
 							font=dict(
@@ -100,11 +100,11 @@ def main():
 							),
 						),
 						dict(
-							x=1.08,
-							y=0.5,
+							x=1.2,
+							y=1.1,
 							showarrow=False,
-							text="JIND Predictions with Rejection",
-							textangle=-90,
+							text="JIND Predictions",
+							textangle=0,
 							xref="paper",
 							yref="paper",
 							font=dict(
@@ -115,32 +115,50 @@ def main():
 						)
 						],
 			)
-
+	names_empty = ["" for i in range(len(truecelltypes))]
 	fig = go.Figure(data=[go.Sankey(
 								node = dict(
 								pad = 15,
 								thickness = 20,
 								line = dict(color = "gray", width = 0.1),
-								label = truecelltypes + predcelltypes,
+								label = predcelltypes + truecelltypes + predcelltypes,
 								color = colors[:len(truecelltypes)] + colors[:len(predcelltypes)]
 								),
 								# arrangement="snap",
 								# orientation="h",
 								link = dict(
-											source = rows, # indices correspond to labels, eg A1, A2, A2, B1, ...
-											target = cols + len(truecelltypes),
-											value = cfmt[rows, cols],
-											color = np.array(colors_opaque)[rows]
+											source = list(cols) + list(rows + len(predcelltypes)), # indices correspond to labels, eg A1, A2, A2, B1, ...
+											target = list(rows + len(predcelltypes)) + list(cols + len(predcelltypes) + len(truecelltypes)),
+											value = list(cfmt[rows, cols]) + list(cfmt[rows, cols]),
+											color = np.array(colors_opaque)[list(rows) + list(rows)]
 											)
 								)
 						],
 					layout = layout
 					)
 
+	# # fig.update_layout(title_text="Basic Sankey Diagram", font_size=10)
+	# # fig.write_html('first_figure.html', auto_open=True)
+	# path = os.path.dirname(args.file)
+	# fig.write_image("{}/{}_Sankey.pdf".format(path, os.path.splitext(os.path.basename(args.file))[0]))
+
+	# fig = go.Figure(data=[go.Sankey(
+	# 	node = dict(
+	# 		pad = 15,
+	# 		thickness = 20,
+	# 		line = dict(color = "black", width = 0.5),
+	# 		label = ["A1", "A2", "B1", "B2", "A1", "A2"],
+	# 		color = "blue"
+	# 	),
+	# 	link = dict(
+	# 		source = [0, 0, 1, 1, 2, 3, 2, 3], # indices correspond to labels, eg A1, A2, A2, B1, ...
+	# 		target = [2, 3, 2, 3, 4, 4, 5, 5],
+	# 		value = [8, 4, 2, 8, 8, 4, 2, 8]
+	#   ))])
+
 	# fig.update_layout(title_text="Basic Sankey Diagram", font_size=10)
-	# fig.write_html('first_figure.html', auto_open=True)
-	path = os.path.dirname(args.file)
-	fig.write_image("{}/{}_Sankey.pdf".format(path, os.path.splitext(os.path.basename(args.file))[0]))
+
+	fig.write_image("3way_Sankey.pdf")
 
 
 

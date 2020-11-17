@@ -50,6 +50,9 @@ def main():
 
 	obj.vis_latent(train_mat, train_labels, test_mat, test_labels, test=False)
 	obj.vis_latent(train_mat, train_labels, test_mat, test_labels, test=True)
+	
+	# predicted_label = obj.evaluate(test_mat, test_labels, frac=0.05, name=None, test=True)
+	# obj.detect_novel(train_mat, train_labels, test_mat, predicted_label, test_labels=test_labels, test=True)
 
 	# visobj = JindVis(test_mat, test_labels, obj, direc="{}/blood_vis".format(path))
 	# visobj.setup(test=True)
@@ -69,7 +72,6 @@ def main():
 	# 				'epochs': 20}
 
 	# obj.remove_effect(train_mat, test_mat, train_config, test_labels)
-	# predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name=None, test=True, return_log=True)
 
 	# train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
 	# 				'epochs': 10}

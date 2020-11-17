@@ -43,6 +43,17 @@ def main():
 	path = os.path.dirname(args.file)
 	plt.savefig("{}/{}_RejectionBar.pdf".format(path, os.path.splitext(os.path.basename(args.file))[0]))
 
+	plt.figure(figsize=(6,8))
+	ax = sns.barplot(x="Method", y="% Rejected", hue='Dataset', data=df)
+	ax.set_xticklabels(ax.get_xticklabels(), rotation=0, horizontalalignment='center')
+	# ax._legend.remove()
+	plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=2)
+	plt.tight_layout()
+
+
+	path = os.path.dirname(args.file)
+	plt.savefig("{}/{}_RejectionBarVertical.pdf".format(path, os.path.splitext(os.path.basename(args.file))[0]))
+
 
 	plt.figure(figsize=(10, 6))
 	ax = sns.lineplot(x="Dataset", y="% Rejected", hue='Method', data=df, markers=True, style="Method")

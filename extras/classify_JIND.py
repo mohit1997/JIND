@@ -2,6 +2,7 @@ import numpy as np
 import sys, os, pdb
 import pandas as pd
 import argparse
+import torch
 from jind import JindLib
 from matplotlib import pyplot as plt
 import argparse
@@ -10,14 +11,15 @@ from datetime import datetime
 np.random.seed(0)
 
 parser = argparse.ArgumentParser(description='RUN JIND')
-parser.add_argument('--train_path', default="datasets/human_blood_integrated_01/train.pkl", type=str,
+parser.add_argument('--train_path', default="datasets/human_blood_01/train.pkl", type=str,
 					help='path to train data frame with labels')
-parser.add_argument('--test_path', default="datasets/human_blood_integrated_01/test.pkl", type=str,
+parser.add_argument('--test_path', default="datasets/human_blood_01/test.pkl", type=str,
 					help='path to test data frame with labels')
 parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
 
 def main():
+	torch.set_num_threads(40)
 	startTime = datetime.now()
 	args = parser.parse_args()
 	train_batch = pd.read_pickle(args.train_path)
@@ -52,7 +54,9 @@ def main():
 	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
 					'epochs': 20}
 
+	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
+	print(datetime.now()  - temp)
 	predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True, return_log=True)
 
 	train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
@@ -61,7 +65,7 @@ def main():
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)
 	
 	obj.to_pickle("JindLib_obj.pkl")
-	
+
 	with open("{}/test.log".format(path), "w") as text_file:
 		print("{}".format(log1), file=text_file)
 		print("BR {}".format(log2), file=text_file)

@@ -38,9 +38,9 @@ def main():
 	mat = train_mat.values
 	mat_round = np.rint(mat)
 	error = np.mean(np.abs(mat - mat_round))
-	if error == 0:
-		print("Data is int")
-		obj.preprocess()
+	# if error == 0:
+	# 	print("Data is int")
+	# 	obj.preprocess()
 
 	obj.dim_reduction(5000, 'Var')
 

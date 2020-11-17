@@ -47,7 +47,7 @@ def main():
 
 	obj.dim_reduction(5000, 'Var')
 
-	visobj = JindVis(test_mat, test_labels, obj, direc="{}/blood_vis".format(path))
+	visobj = JindVis(test_mat, test_labels, obj, direc="{}/vis".format(path))
 	visobj.setup(test=True)
 	visobj.reduce("tsne")
 	visobj.plot_2d(method="tsne", test=True)

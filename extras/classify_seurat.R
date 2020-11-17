@@ -10,6 +10,7 @@ library(purrr)
 library(tidyr)
 library(yardstick)
 library(reticulate)
+library(Rfast)
 if(!require(reshape)){
   install.packages("reshape")
 }
@@ -28,6 +29,15 @@ parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
 
 args <- parser$parse_args()
+
+replacestring <- function(inp, x, y) {
+  for (i in 1:length(inp)){
+    st = inp[i]
+    st = gsub(x, y, st)
+    inp[i] = st
+  }
+  return(inp)
+}
 
 pd <- import("pandas")
 lname = args$column
@@ -74,15 +84,12 @@ metadata2 = as.data.frame(metadata2)
 
 reference <- CreateSeuratObject(t(mat1), meta.data = metadata1)
 query <- CreateSeuratObject(t(mat2), meta.data = metadata2)
-# pancreas.list <- SplitObject(pancreas, split.by = "batch")
 
 
-# reference <- pancreas.list[[c("0")]]
 reference <- FindVariableFeatures(reference, selection.method = "vst", nfeatures = 2000)
 reference <- ScaleData(reference, verbose = FALSE)
 reference <- RunPCA(reference, npcs = 30, verbose = FALSE)
 
-# query <- pancreas.list[[c("1")]]
 query <- FindVariableFeatures(query, selection.method = "vst", nfeatures = 2000)
 
 anchors <- FindTransferAnchors(reference = reference, query = query, dims = 1:30)
@@ -91,16 +98,34 @@ query <- AddMetaData(query, metadata = predictions)
 
 sprintf("Test Accuracy %f", mean(query$predicted.id == query$labels))
 common_ctypes = sort(ctypes)
-predicted = query$predicted.id
+predictions = query$predicted.id
+predictions = replacestring(predictions, "lab.", "")
+
+labels = query$labels
+labels = replacestring(as.character(labels), "lab.", "")
+
+results = cbind(predictions, predictions, labels)
+colnames(results) = c("raw_predictions", "predictions", "labels")
+
 for (i in 1:length(common_ctypes)){
   st = sprintf("prediction.score.%s", common_ctypes[i])
-  print(st)
   # st = gsub(" ", ".", st)
-  predicted = cbind(predicted, query@meta.data[st])
+  if (i == 1){
+    scores = query@meta.data[st]
+  } else {
+    scores = cbind(scores, query@meta.data[st])
+  }
+  
 }
-predicted = cbind(predicted, query$labels)
-colnames(predicted) <- c(colnames(predicted)[1:ncol(predicted)-1], "labels")
-cm = confusionMatrix(factor(predicted$predicted), factor(query$labels))
+
+colnames(scores) = replacestring(colnames(scores), "prediction.score.lab.", "")
+out = apply(scores, 1, max)
+
+results[, "predictions"][out < 0.9] = "Unassigned"
+filtered_results = results[out > 0.9]
+
+
+cm = confusionMatrix(factor(results[, "raw_predictions"], levels=levels(factor(results[, "labels"]))), factor(results[, "labels"]))
 cm = as.data.frame.matrix(cm$table)
 cm = t(cm/colSums(cm)[col(cm)])
 
@@ -110,11 +135,13 @@ dir.create(path, showWarnings = FALSE)
 
 file = sprintf("%s/test.log", path)
 end_time <- Sys.time()
-cat(sprintf("Test Accuracy %f \n", mean(query$predicted.id == query$labels)), file = file)
+cat(sprintf("Raw Accuracy %f \n", mean(results[,"raw_predictions"] == results[, "labels"])), file = file)
+cat(sprintf("Eff Accuracy %f \n", mean(results[,"predictions"] == results[, "labels"])), file = file, append=TRUE)
+cat(sprintf("Filtered %f \n", mean(out < 0.9)), file = file, append=TRUE)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
-output_path = sprintf("%s/seurat_matrix.pkl", path)
-py_save_object(predicted, output_path)
+output_path = sprintf("%s/seurat_assignment.pkl", path)
+py_save_object(as.data.frame(results), output_path)
 
 
 cm = data.frame(melt(cm))
@@ -130,6 +157,7 @@ thisplot <- ggplot(cm, aes(x = X2, y = X1)) +
                      axis.text.y=element_text(size=9),
                      plot.title=element_text(size=11))
 
+print(thisplot)
 savePlot <- function(myPlot) {
   pdf(sprintf("%s/test_confusion_matrix.pdf", path))
   print(myPlot)

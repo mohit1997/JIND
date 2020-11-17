@@ -6,6 +6,7 @@ library("scPred")
 library("tidyverse")
 library('Seurat')
 library(caret)
+library(irlba)
 if(!require(reshape)){
   install.packages("reshape")
 }
@@ -17,9 +18,9 @@ py_config()
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run scPred')
-parser$add_argument('--train_path', default="datasets/mouse_integrated_01/train.pkl", type="character",
+parser$add_argument('--train_path', default="datasets/mouse_dataset_random/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="datasets/pancreas_integrated_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="datasets/mouse_dataset_random/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -76,6 +77,15 @@ eigenDecompose2 <- function(expData, n = 10, pseudo = TRUE, returnData = TRUE, s
 }
 
 args <- parser$parse_args()
+
+replacestring <- function(inp, x, y) {
+  for (i in 1:length(inp)){
+    st = inp[i]
+    st = gsub(x, y, st)
+    inp[i] = st
+  }
+  return(inp)
+}
 
 pd <- import("pandas")
 lname = args$column
@@ -161,34 +171,39 @@ scp <- getFeatureSpace(scp, pVar = "labels")
 plotEigen(scp, group = "labels")
 scp <- trainModel(scp, seed = 66)
 
-scp1 <- scPredict(scp, newData = test_data, threshold = 0.0)
-scp1@predMeta <- metadata2
-out = crossTab(scp1, true = "labels")
-out = as.matrix(out)
-out <- out[, order(as.numeric(as.factor(colnames(out))))]
-out <- out[order(as.numeric(as.factor(rownames(out)))),]
-pred = getPredictions(scp1)
-true = metadata2[,'labels']
+# scp1 <- scPredict(scp, newData = test_data, threshold = 0.0)
+# scp1@predMeta <- metadata2
+# out = crossTab(scp1, true = "labels")
+# out = as.matrix(out)
+# out <- out[, order(as.numeric(as.factor(colnames(out))))]
+# out <- out[order(as.numeric(as.factor(rownames(out)))),]
+# pred = getPredictions(scp1)
+# true = metadata2[,'labels']
 
-pred1 = cbind(pred, metadata2)
+scp_raw <- scPredict(scp, newData = test_data, threshold = 0.)
+scp_raw@predMeta <- metadata2
+pred_raw = getPredictions(scp_raw)
 
-
-comparison = metadata2['labels'] == pred['predClass']
+comparison = metadata2['labels'] == pred_raw['predClass']
 raw = mean(comparison)
 
-scp2 <- scPredict(scp, newData = test_data, threshold = 0.9)
-scp2@predMeta <- metadata2
-out = crossTab(scp2, true = "labels")
-out = as.matrix(out)
-out <- out[, order(as.numeric(as.factor(colnames(out))))]
-out <- out[order(as.numeric(as.factor(rownames(out)))),]
-pred = getPredictions(scp2)
-true = metadata2[,'labels']
+scp_filt <- scPredict(scp, newData = test_data, threshold = 0.9)
+scp_filt@predMeta <- metadata2
+pred_filt = getPredictions(scp_filt)
 
-pred2 = cbind(pred, metadata2)
-index = pred['predClass'] != "unassigned"
+names(pred_raw)[names(pred_raw) == "predClass"] = "raw_predictions"
+names(pred_filt)[names(pred_filt) == "predClass"] = "predictions"
+pred_raw$raw_predictions = gsub('lab.', '', pred_raw$raw_predictions)
+pred_filt$predictions = gsub('lab.', '', pred_filt$predictions)
+pred_filt$predictions[pred_filt$predictions == "unassigned"] = "Unassigned"
 
-comparison = metadata2[index, 'labels'] == pred[index, 'predClass']
+metadata2$labels = gsub('lab.', '', metadata2$labels)
+
+results = cbind(pred_raw["raw_predictions"], pred_filt["predictions"], metadata2["labels"])
+colnames(results) = c("raw_predictions", "predictions", "labels")
+index = pred_filt['predictions'] != "Unassigned"
+
+comparison = metadata2[index, 'labels'] == pred_filt[index, 'predictions']
 
 eff = mean(comparison)
 filtered = 1 - mean(index)
@@ -204,5 +219,5 @@ print(sprintf("Test Accuracy %f w.f. %f filtered %f", raw, eff, filtered))
 cat(sprintf("Test Accuracy %f w.f. %f filtered %f \n ", raw, eff, filtered), file = file)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
-output_path = sprintf("%s/scPred_matrix.pkl", path)
-py_save_object(pred1, output_path)
+output_path = sprintf("%s/scPred_assignment.pkl", path)
+py_save_object(results, output_path)
