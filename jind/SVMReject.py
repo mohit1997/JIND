@@ -171,7 +171,12 @@ class SVMReject:
             plt.savefig('{}/{}'.format(self.path, name))
 
         predictions = [self.num2class[i] for i in preds]
-        predicted_label = pd.DataFrame({"cellname":test_gene_mat.index, "predictions":predictions, "labels":test_labels})
+        raw_predictions = [self.num2class[i] for i in np.argmax(y_pred, axis=1)]
+        predicted_label = pd.DataFrame({"cellname": test_gene_mat.index,
+                                        "raw_predictions": raw_predictions,
+                                        "predictions": predictions,
+                                        "labels": test_labels})
+        
         predicted_label = predicted_label.set_index("cellname")
         if return_log:
             return predicted_label, 'Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered)
