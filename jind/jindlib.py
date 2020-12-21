@@ -319,16 +319,25 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered, np.mean(aps[:self.n_classes])), fontsize=16)
+			APs = aps[:self.n_classes]
+			mAP = np.true_divide(aps.sum(), (aps!=0).sum())
+			plt.title('Accuracy Raw {:.3f} Eff {:.3f} Rej {:.3f} mAP {:.3f}'.format(pretest_acc, pred_acc, filtered, mAP), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
 		predictions = [self.num2class[i] for i in preds]
 		raw_predictions = [self.num2class[i] for i in np.argmax(y_pred, axis=1)]
-		predicted_label = pd.DataFrame({"cellname": test_gene_mat.index,
-										"raw_predictions": raw_predictions,
-										"predictions": predictions,
-										"labels": test_labels})
+		
+		dic1 = {"cellname": test_gene_mat.index,
+				"raw_predictions": raw_predictions,
+				"predictions": predictions,
+				"labels": test_labels}
+
+		dic2 = {self.num2class[i]: list(y_pred[:, i]) for i in range(self.n_classes)}
+
+		dic = {**dic1, **dic2}
+
+		predicted_label = pd.DataFrame(dic)
 
 		predicted_label = predicted_label.set_index("cellname")
 
@@ -367,7 +376,9 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f} mAP {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered, np.mean(aps[:self.n_classes])), fontsize=16)
+			APs = aps[:self.n_classes]
+			mAP = np.true_divide(aps.sum(), (aps!=0).sum())
+			plt.title('Accuracy Raw {:.3f} Eff {:.3f} Rej {:.3f} mAP {:.3f}'.format(pretest_acc, pred_acc, filtered, mAP), fontsize=16)
 
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
@@ -1095,6 +1106,180 @@ class JindLib:
 						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
 						# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
 						# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
+						# real_loss = -torch.mean(disc(batch1_code))
+						# fake_loss = torch.mean(disc(batch2_code.detach()))
+						d_loss = 0.5 * (real_loss + fake_loss)
+
+						d_loss.backward()
+						optimizer_D.step()
+						# for p in disc.parameters():
+						# 	p.data.clamp_(-0.01, 0.01)
+						s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
+						c1 += len(batch1_code)
+
+				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
+			if (s2 < 0.78) and (s1 < 0.78):
+				count += 1
+				self.test_model = model2
+				torch.save(model2.state_dict(), self.path+"/best_br.pth")
+				if test_labels is not None:
+					print("Evaluating....")
+					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
+
+				if count >= 3:
+					break
+
+		if not os.path.isfile(self.path+"/best_br.pth"):
+			torch.save(model2.state_dict(), self.path+"/best_br.pth")
+			
+		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
+		self.test_model = model2
+
+
+	def weighted_remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
+		features_batch1 = train_gene_mat.values
+		features_batch2 = test_gene_mat.values
+		if self.preprocessed:
+			features_batch1 = np.log(1+features_batch1)
+			features_batch2 = np.log(1+features_batch2)
+		if self.reduce_method is not None:
+			if self.reduce_method == "Var":
+				features_batch1 = features_batch1[:, self.variances]
+				features_batch2 = features_batch2[:, self.variances]
+			elif self.reduce_method == "PCA":
+				features_batch1 = self.pca.transform(features_batch1)
+				features_batch2 = self.pca.transform(features_batch2)
+		if self.scaler is not None:
+			features_batch1 = self.scaler.transform(features_batch1)
+			features_batch2 = self.scaler.transform(features_batch2)
+		
+		torch.manual_seed(config['seed'])
+		torch.cuda.manual_seed(config['seed'])
+		np.random.seed(config['seed'])
+		torch.backends.cudnn.deterministic = True
+
+
+		y_pred = self.predict(test_gene_mat)
+		preds = np.argmax(y_pred, axis=1)
+
+		test_prop = np.array([np.sum(preds==i) for i in range(self.n_classes)])
+		test_prop = test_prop/np.sum(test_prop)
+
+		train_labels = self.labels
+		train_prop = np.array([np.sum(train_labels==i) for i in range(self.n_classes)])
+		train_prop = train_prop/np.sum(train_prop)
+
+		factor_update = test_prop/train_prop
+		factor_update[factor_update > 0.1] = 1.
+		factor_update = factor_update * len(factor_update) / (np.sum(factor_update) + 1e-4)
+		print(factor_update, train_prop, test_prop)
+
+
+		batch1_dataset = DataLoaderCustom(features_batch1, labels=self.labels, weights=factor_update)
+		batch2_dataset = DataLoaderCustom(features_batch2)
+
+		# sys.exit()
+
+		use_cuda = config['cuda']
+		use_cuda = use_cuda and torch.cuda.is_available()
+
+		device = torch.device("cuda" if use_cuda else "cpu")
+		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
+
+		batch1_loader = torch.utils.data.DataLoader(batch1_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=True, **kwargs)
+
+		batch2_loader = torch.utils.data.DataLoader(batch2_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=False, **kwargs)
+
+
+		model1 = self.model.to(device)
+		for param in model1.parameters():
+			param.requires_grad = False
+		# Define new model
+		model_copy = Classifier(features_batch1.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
+		# Intialize it with the same parameter values as trained model
+		model_copy.load_state_dict(model1.state_dict())
+		for param in model_copy.parameters():
+			param.requires_grad = False
+		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
+
+		disc = Discriminator(LDIM).to(device)
+
+		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
+		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-2)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=1e-6)
+		adversarial_weight = torch.nn.BCELoss(reduction='none')
+		adversarial_loss = torch.nn.BCELoss()
+		sample_loss = torch.nn.BCELoss()
+
+
+		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+
+		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
+		count = 0
+		for epoch in range(config['epochs']):
+			if len(batch2_loader) < 50:
+				pBar = tqdm(range(40))
+			else:
+				pBar = tqdm(batch2_loader)
+			model1.eval()
+			model2.eval()
+			disc.train()
+			c1, s1 = 0, 0
+			c2, s2 = 0, 0
+			for sample in pBar:
+
+				valid = Variable(Tensor(bs, 1).fill_(1.0), requires_grad=False)
+				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
+
+				sample_loss = torch.nn.BCELoss()
+				disc.eval()
+				for i in range(1):
+					ind = np.random.randint(0, (len(features_batch2)), bs)
+					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+					optimizer_G.zero_grad()
+
+					batch2_code, penalty = model2.get_repr(batch2_inps)
+					g_loss = adversarial_weight(disc(batch2_code), valid)
+					# print(np.mean(weights.numpy()))
+					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
+					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					g_loss = sample_loss(disc(batch2_code), valid) #+ 0.001 * penalty
+					# g_loss = -torch.mean(disc(batch2_code))
+					g_loss.backward()
+					optimizer_G.step()
+					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
+					c2 += len(batch2_code)
+
+				if s2 < 0.8:
+					sample_loss = torch.nn.BCELoss()
+					model2.eval()
+					disc.train()
+					for i in range(2):
+						if i != 0:
+							ind = np.random.randint(0, (len(features_batch2)), bs)
+							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+							batch2_code, _ = model2.get_repr(batch2_inps)
+						optimizer_D.zero_grad()
+						ind = np.random.randint(0, (len(features_batch1)), bs)
+						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
+						batch1_weights = Variable(torch.from_numpy(factor_update[train_labels[ind]])).to(device).type(Tensor).reshape(-1, 1)
+						# print(factor_update[train_labels[ind]].shape, batch1_weights.shape)
+						batch1_code = model1.get_repr(batch1_inps)
+						
+						# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
+						# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
+						sample_loss = torch.nn.BCELoss(weight=batch1_weights.detach())
+						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
+
+						# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
+						# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
+						sample_loss = torch.nn.BCELoss()
 						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
 						# real_loss = -torch.mean(disc(batch1_code))
 						# fake_loss = torch.mean(disc(batch2_code.detach()))

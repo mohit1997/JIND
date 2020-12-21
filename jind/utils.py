@@ -3,7 +3,7 @@ import numpy as np
 from itertools import product
 
 class DataLoaderCustom(Dataset):
-	def __init__(self, features, labels=None, transform=None):
+	def __init__(self, features, labels=None, weights=None, transform=None):
 		"""
 			Args:
 				features (string): np array of features.
@@ -12,6 +12,7 @@ class DataLoaderCustom(Dataset):
 		"""
 		self.features = features
 		self.labels = labels
+		self.weights = weights
 		self.transform = transform
 
 	def __len__(self):
@@ -22,8 +23,10 @@ class DataLoaderCustom(Dataset):
 		sample['x'] = self.features[idx].astype('float32')
 		if self.labels is not None:
 			sample['y'] = self.labels[idx]
-
+			if self.weights is not None:
+				sample['w'] = self.weights[self.labels[idx]].astype('float32')
 		return sample
+
 
 def _check_targets(y_true, y_pred):
 	check_consistent_length(y_true, y_pred)
