@@ -368,7 +368,7 @@ class JindVis:
 
 			color_list=['r' if i else 'b' for i in check]
 
-			plt.figure(figsize=(10, 7))
+			plt.figure(figsize=(12, 8))
 			order = list(set(df['Raw Predictions']))
 			order = sorted(order, key=str.casefold)
 
@@ -378,7 +378,7 @@ class JindVis:
 			plt.tight_layout()
 			plt.savefig("{}/{}_rawpred.pdf".format(self.dir, method))
 
-			plt.figure(figsize=(10, 7))
+			plt.figure(figsize=(12, 8))
 			order = list(set(df['Raw Predictions']).union(set(["Unassigned"])))
 			order = sorted(order, key=str.casefold)
 

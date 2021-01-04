@@ -298,7 +298,7 @@ class JindLib:
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
 		filtered = 1 - np.mean(ind)
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
+		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -342,7 +342,7 @@ class JindLib:
 		predicted_label = predicted_label.set_index("cellname")
 
 		if return_log:
-			return predicted_label, 'Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered)
+			return predicted_label, 'Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered)
 		return predicted_label
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
@@ -355,7 +355,7 @@ class JindLib:
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
 		filtered = 1 - np.mean(ind)
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
+		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -392,7 +392,7 @@ class JindLib:
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
 		filtered = 1 - np.mean(ind)
-		print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
+		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -413,7 +413,7 @@ class JindLib:
 			fig = plt.figure(figsize=(10*factor,8*factor))
 			cm_ob.plot(values_format='0.2f', ax=fig.gca())
 
-			plt.title('Accuracy Pre {:.3f} Post {:.3f} Eff {:.3f} Filtered {:.3f}'.format(pretest_acc, test_acc, pred_acc, filtered), fontsize=16)
+			plt.title('Accuracy Raw {:.3f} Eff {:.3f} Rej {:.3f}'.format(pretest_acc, pred_acc, filtered), fontsize=16)
 			plt.tight_layout()
 			plt.savefig('{}/{}'.format(self.path, name))
 
