@@ -960,7 +960,7 @@ class JindLib:
 
 		plt.figure(figsize=(8, 6))		
 		order = list(set(df['Labels']))
-		order = sorted(order, key=str.casefold)
+		order = list(df[df['Batch'] == "Target"]['Labels'].value_counts().index)
 
 		g = sns.scatterplot(x='tSNE_x', y='tSNE_y', hue='Labels', data=df, hue_order=order, style='Batch', style_order=["Source", "Target"], s=80) #, size='|Match|', size_order=['miss', 'correct'])
 		plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0., fontsize=15, markerscale=2.)

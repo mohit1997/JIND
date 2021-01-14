@@ -20,6 +20,13 @@ def main():
 	metadata = pd.read_pickle(args.file)
 	print(metadata.columns)
 
+	if "pancreas_01" in args.file:
+		pname = "Pancreas Bar16 - Mur16"
+	elif "pancreas_02" in args.file:
+		pname = "Pancreas Bar16 - Seg16"
+	elif "human_blood_01" in args.file:
+		pname = "PBMC 10x_v3-10x_v5"
+
 	opacity = 0.4
 
 	columns = ['raw_predictions', 'predictions', 'labels']
@@ -64,7 +71,7 @@ def main():
 			width=500,
 			height=500,
 			font_family="Times New Roman",
-			title_text="Pancreas Bar16 - Mur16",
+			title_text=pname,
 			# title_text="PBMC 10x_v3-10x_v5",
 			title_x=0.5,
 			font_size=16,
