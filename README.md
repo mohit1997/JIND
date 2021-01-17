@@ -76,7 +76,7 @@ obj.to_pickle("jindobj.pkl")
 ---
 ```python
 # Load JIND Model. JIND doesn't save the training data for efficient memory usage. Therefore training data needs to explicitly provided and preprocessed again.
-
+import pickle
 path = "my_results"
 
 with open('{}/jindobj.pkl'.format(path), 'rb') as f:
