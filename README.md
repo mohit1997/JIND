@@ -125,3 +125,6 @@ obj.ftune(test_gene_mat, train_config)
 # For evaluation
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
 ```
+
+# Differential Expression Analysis
+The scripts to perform DE Analysis provided in the paper can be accessed [here](https://github.com/GuiSeSanz/JIND_DE)
