@@ -1037,10 +1037,13 @@ class JindLib:
 
 		disc = Discriminator(LDIM).to(device)
 
+		G_decay = config.get("gdecay", 1e-2)
+		D_decay = config.get("ddecay", 1e-6)
+
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-2)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=1e-6)
+		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=G_decay)
+		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=D_decay)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
