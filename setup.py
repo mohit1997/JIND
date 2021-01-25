@@ -26,7 +26,7 @@ setup(name='jind',
 			"tqdm==4.43.0",
 			"plotly",
 			"kaleido",
-			"rpy2",
+			# "rpy2",
 			"notebook",
 			],
 	zip_safe=False)
