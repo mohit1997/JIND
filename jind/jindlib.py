@@ -33,7 +33,8 @@ class JindLib:
 		self.reduced_features = None
 		self.reduce_method = None
 		self.model = None
-		self.preprocessed = False
+		self.count_normalize = False
+		self.logt = False
 		self.path = path
 		os.system('mkdir -p {}'.format(self.path))
 
@@ -57,10 +58,15 @@ class JindLib:
 		self.val_stats = None
 		self.scaler = None
 
-	def preprocess(self):
-		print('Applying log transformation ...')
-		self.preprocessed = True
-		self.raw_features = np.log(1 + self.raw_features)
+	def preprocess(self, count_normalize=False, target_sum=1e4, logt=True):
+		self.logt = logt
+		self.count_normalize = count_normalize
+		if count_normalize:
+			print('Normalizing counts ...')
+			self.raw_features = self.raw_features / (np.sum(self.raw_features, axis=1, keepdims=True) + 1e-5) * target_sum
+		if logt:
+			print('Applying log transformation ...')
+			self.raw_features = np.log(1 + self.raw_features)
 
 
 	def dim_reduction(self, num_features=5000, method='var', save_as=None):
@@ -78,6 +84,7 @@ class JindLib:
 			print('Variance based reduction ...')
 			self.variances = np.argsort(-np.var(self.raw_features, axis=0))[:dim_size]
 			self.reduced_features = self.raw_features[:, self.variances]
+			self.selected_genes = [self.gene_names[i] for i in self.variances]
 			if save_as is not None:
 				np.save('{}_{}'.format(save_as, method), self.reduced_features)
 
@@ -200,17 +207,29 @@ class JindLib:
 		model.load_state_dict(torch.load(path, map_location='cpu'))
 		self.model = model
 
-	def predict(self, test_gene_mat, test=False, return_names=False):
-		features = test_gene_mat.values
-		if self.preprocessed:
+	def get_features(self, gene_mat):
+		features = gene_mat.values
+		if self.count_normalize:
+			features = features / (np.sum(features, axis=1, keepdims=True) + 1e-5) * 1e4
+		if self.logt:
 			features = np.log(1+features)
 		if self.reduce_method is not None:
 			if self.reduce_method == "Var":
+				selected_genes = [gene_mat.columns[i] for i in self.variances]
+				if selected_genes != self.selected_genes:
+					print("Reorder the genes for the target batch in the same order as the source batch")
+					sys.exit()
 				features = features[:, self.variances]
 			elif self.reduce_method == "PCA":
 				features = self.pca.transform(features)
 		if self.scaler is not None:
 			features = self.scaler.transform(features)
+
+		return features
+
+	def predict(self, test_gene_mat, test=False, return_names=False):
+		
+		features = self.get_features(test_gene_mat)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -245,16 +264,8 @@ class JindLib:
 		return y_pred
 
 	def get_encoding(self, test_gene_mat, test=False):
-		features = test_gene_mat.values
-		if self.preprocessed:
-			features = np.log(1+features)
-		if self.reduce_method is not None:
-			if self.reduce_method == "Var":
-				features = features[:, self.variances]
-			elif self.reduce_method == "PCA":
-				features = self.pca.transform(features)
-		if self.scaler is not None:
-			features = self.scaler.transform(features)
+		
+		features = self.get_features(test_gene_mat)
 
 		test_dataset = DataLoaderCustom(features)
 
@@ -355,7 +366,6 @@ class JindLib:
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
 		filtered = 1 - np.mean(ind)
-		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -985,21 +995,9 @@ class JindLib:
 
 
 	def remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
-		features_batch1 = train_gene_mat.values
-		features_batch2 = test_gene_mat.values
-		if self.preprocessed:
-			features_batch1 = np.log(1+features_batch1)
-			features_batch2 = np.log(1+features_batch2)
-		if self.reduce_method is not None:
-			if self.reduce_method == "Var":
-				features_batch1 = features_batch1[:, self.variances]
-				features_batch2 = features_batch2[:, self.variances]
-			elif self.reduce_method == "PCA":
-				features_batch1 = self.pca.transform(features_batch1)
-				features_batch2 = self.pca.transform(features_batch2)
-		if self.scaler is not None:
-			features_batch1 = self.scaler.transform(features_batch1)
-			features_batch2 = self.scaler.transform(features_batch2)
+		
+		features_batch1 = self.get_features(train_gene_mat)
+		features_batch2 = self.get_features(test_gene_mat)
 		
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
@@ -1061,8 +1059,8 @@ class JindLib:
 			model1.eval()
 			model2.eval()
 			disc.train()
-			c1, s1 = 0, 0
-			c2, s2 = 0, 0
+			c1, s1 = 0, 0.7
+			c2, s2 = 0, 0.7
 			for sample in pBar:
 
 				valid = Variable(Tensor(bs, 1).fill_(1.0), requires_grad=False)
@@ -1070,6 +1068,7 @@ class JindLib:
 
 				sample_loss = torch.nn.BCELoss()
 				disc.eval()
+				
 				for i in range(1):
 					ind = np.random.randint(0, (len(features_batch2)), bs)
 					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
@@ -1082,47 +1081,59 @@ class JindLib:
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					g_loss = sample_loss(disc(batch2_code), valid) #+ 0.001 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
-					g_loss.backward()
-					optimizer_G.step()
+					if s2 > 0.4:
+						g_loss.backward()
+						optimizer_G.step()
 					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
 					c2 += len(batch2_code)
 
-				if s2 < 0.8:
-					sample_loss = torch.nn.BCELoss()
-					model2.eval()
-					disc.train()
-					for i in range(2):
-						if i != 0:
-							ind = np.random.randint(0, (len(features_batch2)), bs)
-							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-							batch2_code, _ = model2.get_repr(batch2_inps)
-						optimizer_D.zero_grad()
-						ind = np.random.randint(0, (len(features_batch1)), bs)
-						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
-						batch1_code = model1.get_repr(batch1_inps)
-						
-						real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-						# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
-						# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
+					if s2 == 0 or g_loss.item() == 0:
+						model2.reinitialize()
+						# reset count as well
+						count = 0
 
-						fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-						# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
-						# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
-						# real_loss = -torch.mean(disc(batch1_code))
-						# fake_loss = torch.mean(disc(batch2_code.detach()))
-						d_loss = 0.5 * (real_loss + fake_loss)
+				
+				sample_loss = torch.nn.BCELoss()
+				model2.eval()
+				disc.train()
+				for i in range(2):
+					if i != 0:
+						ind = np.random.randint(0, (len(features_batch2)), bs)
+						batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+						batch2_code, _ = model2.get_repr(batch2_inps)
+					optimizer_D.zero_grad()
+					ind = np.random.randint(0, (len(features_batch1)), bs)
+					batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
+					batch1_code = model1.get_repr(batch1_inps)
+					
+					real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
+					# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
+					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
 
+					fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
+					# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
+					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
+					fake_loss = sample_loss(disc(batch2_code.detach()), fake)
+					# real_loss = -torch.mean(disc(batch1_code))
+					# fake_loss = torch.mean(disc(batch2_code.detach()))
+					d_loss = 0.5 * (real_loss + fake_loss)
+
+					if s2 < 0.8 or s1 > 1.0:
 						d_loss.backward()
 						optimizer_D.step()
-						# for p in disc.parameters():
-						# 	p.data.clamp_(-0.01, 0.01)
-						s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
-						c1 += len(batch1_code)
+					# for p in disc.parameters():
+					# 	p.data.clamp_(-0.01, 0.01)
+					s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
+					c1 += len(batch1_code)
+
+					if s1 == 0 or d_loss.item() == 0:
+						model2.reinitialize()
+						# reset count as well
+						count = 0
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.78) and (s1 < 0.78):
+			if (s2 < 0.78) and (s2 > 0.5) and (s1 < 0.78) and (s1 > 0.5):
 				count += 1
 				self.test_model = model2
 				torch.save(model2.state_dict(), self.path+"/best_br.pth")
@@ -1141,21 +1152,9 @@ class JindLib:
 
 
 	def weighted_remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
-		features_batch1 = train_gene_mat.values
-		features_batch2 = test_gene_mat.values
-		if self.preprocessed:
-			features_batch1 = np.log(1+features_batch1)
-			features_batch2 = np.log(1+features_batch2)
-		if self.reduce_method is not None:
-			if self.reduce_method == "Var":
-				features_batch1 = features_batch1[:, self.variances]
-				features_batch2 = features_batch2[:, self.variances]
-			elif self.reduce_method == "PCA":
-				features_batch1 = self.pca.transform(features_batch1)
-				features_batch2 = self.pca.transform(features_batch2)
-		if self.scaler is not None:
-			features_batch1 = self.scaler.transform(features_batch1)
-			features_batch2 = self.scaler.transform(features_batch2)
+		
+		features_batch1 = self.get_features(train_gene_mat)
+		features_batch2 = self.get_features(test_gene_mat)
 		
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
@@ -1314,16 +1313,7 @@ class JindLib:
 		self.test_model = model2
 
 	def ftune(self, test_gene_mat, config, cmat=True):
-		features = test_gene_mat.values
-		if self.preprocessed:
-			features = np.log(1+features)
-		if self.reduce_method is not None:
-			if self.reduce_method == "Var":
-				features = features[:, self.variances]
-			elif self.reduce_method == "PCA":
-				features = self.pca.transform(features)
-		if self.scaler is not None:
-			features = self.scaler.transform(features)
+		features = self.get_features(test_gene_mat)
 
 		y_pred = self.predict(test_gene_mat, test=True)
 		preds = self.filter_pred(y_pred, 0.3)
