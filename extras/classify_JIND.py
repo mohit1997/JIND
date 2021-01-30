@@ -40,7 +40,8 @@ def main():
 	error = np.mean(np.abs(mat - mat_round))
 	if error == 0:
 		print("Data is int")
-		obj.preprocess()
+		obj.preprocess(count_normalize=True, logt=True)
+
 
 	obj.dim_reduction(5000, 'Var')
 
@@ -52,7 +53,7 @@ def main():
 	
 	predicted_label1, log1 = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt.pdf", return_log=True)
 	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
-					'epochs': 20}
+					'epochs': 20, 'gdecay': 1e-2}
 
 	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
