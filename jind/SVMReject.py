@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 import time as tm
 from sklearn.svm import LinearSVC
-import rpy2.robjects as robjects
 from sklearn.calibration import CalibratedClassifierCV
 import torch, sys, os, pdb
 import pandas as pd

@@ -17,6 +17,8 @@ parser.add_argument('--test_path', default="datasets/human_blood_01/test.pkl", t
 					help='path to test data frame with labels')
 parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
+parser.add_argument('--seed', type=int, default=0,
+					help='Random Seed')
 
 def main():
 	torch.set_num_threads(40)
@@ -31,41 +33,39 @@ def main():
 	train_batch = train_batch[list(common_genes)]
 	test_batch = test_batch[list(common_genes)]
 
-	train_mat = train_batch.drop(lname, axis=1)
+	train_mat = train_batch.drop(lname, axis=1).fillna(0)
 	train_labels = train_batch[lname]
 
-	test_mat = test_batch.drop(lname, axis=1)
+	test_mat = test_batch.drop(lname, axis=1).fillna(0)
 	test_labels = test_batch[lname]
 
-	path = os.path.dirname(args.train_path) + "/JIND"
+	path = os.path.dirname(args.train_path) + f"/JIND_raw_{args.seed}"
 
 	obj = JindLib(train_mat, train_labels, path=path)
 	mat = train_mat.values
 	mat_round = np.rint(mat)
 	error = np.mean(np.abs(mat - mat_round))
 	if error == 0:
-		print("Data is int")
 		obj.preprocess(count_normalize=True, logt=True)
-
 
 	obj.dim_reduction(5000, 'Var')
 
-	train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False,
+	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
 					'epochs': 15}
 	
 	obj.train_classifier(config=train_config, cmat=True)
 	
 	
 	predicted_label1, log1 = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt.pdf", return_log=True)
-	train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
-					'epochs': 20, 'gdecay': 1e-2}
+	train_config = {'seed': args.seed, 'batch_size': 512, 'cuda': False,
+					'epochs': 30, 'gdecay': 1e-2, 'ddecay': 1e-6}
 
 	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
 	print(datetime.now()  - temp)
 	predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True, return_log=True)
 
-	train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
+	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 32, 'cuda': False,
 					'epochs': 10}
 	obj.ftune(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)

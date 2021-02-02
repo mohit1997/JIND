@@ -1,5 +1,6 @@
 import torch
 from torch import nn, optim
+import torch.nn.init as init
 from torch.nn import functional as F
 
 class Classifier(nn.Module):
@@ -136,6 +137,10 @@ class ClassifierBig(nn.Module):
 		h = self.fc2(x) + rep * (1 + self.fc3(x))
 		return h, torch.mean(torch.norm(self.fc3(x), dim=1)) #+ 0.1*torch.norm(self.fc2(x))
 
+	def reinitialize(self):
+		self.fc2.apply(weight_reset)
+		self.fc3.apply(weight_reset)
+
 class Discriminator(nn.Module):
 	def __init__(self, dim):
 		super(Discriminator, self).__init__()
@@ -154,3 +159,12 @@ class Discriminator(nn.Module):
 	def forward(self, z):
 		validity = self.model(z)
 		return validity
+
+	def reinitialize(self):
+		self.apply(weight_reset)
+
+
+
+def weight_reset(m):
+	if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+		m.reset_parameters()
