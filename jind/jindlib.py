@@ -1075,7 +1075,7 @@ class JindLib:
 					optimizer_G.zero_grad()
 
 					batch2_code, penalty = model2.get_repr(batch2_inps)
-					g_loss = adversarial_weight(disc(batch2_code), valid)
+					# g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
 					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
@@ -1106,12 +1106,12 @@ class JindLib:
 					batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
 					batch1_code = model1.get_repr(batch1_inps)
 					
-					real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
+					# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
 					# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
 
-					fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
+					# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
 					# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					fake_loss = sample_loss(disc(batch2_code.detach()), fake)

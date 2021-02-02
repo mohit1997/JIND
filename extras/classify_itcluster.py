@@ -2,7 +2,7 @@ import ItClust as ic
 import scanpy.api as sc
 import os
 from numpy.random import seed
-from tensorflow import set_random_seed
+from tensorflow.compat.v1 import set_random_seed
 import pandas as pd
 import numpy as np
 import warnings
@@ -37,7 +37,7 @@ def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path):
 	os.makedirs(f"{res_path}", exist_ok=True)
 	clf=ic.transfer_learning_clf()
 	print(isfloat)
-	clf.fit(adata_train, adata_test, isfloat=isfloat, filter_cells=False, filter_genes=True)
+	clf.fit(adata_train, adata_test, isfloat=isfloat, filter_cells=False, filter_genes=True, logt=True)
 
 	pred, prob, celltype_pred=clf.predict(save_dir=res_path)
 

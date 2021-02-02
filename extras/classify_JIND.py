@@ -26,6 +26,11 @@ def main():
 	test_batch = pd.read_pickle(args.test_path)
 	lname = args.column
 
+	common_genes = list(set(train_batch.columns).intersection(set(test_batch.columns)))
+	common_genes.sort()
+	train_batch = train_batch[list(common_genes)]
+	test_batch = test_batch[list(common_genes)]
+
 	train_mat = train_batch.drop(lname, axis=1)
 	train_labels = train_batch[lname]
 
