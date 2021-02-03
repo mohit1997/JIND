@@ -105,8 +105,6 @@ class transfer_learning_clf(object):
         #4 normalization,var.genes,log1p,scale
         if not isfloat:
             sc.pp.normalize_per_cell(target_data)
-            if logt:
-                sc.pp.log1p(target_data)
 
         # select top genes
         if target_data.X.shape[0]<=1500:
@@ -122,7 +120,10 @@ class transfer_learning_clf(object):
         print(ng, target_data.X.shape)
 
     
-        sc.pp.highly_variable_genes(target_data, n_top_genes=ng)
+        sc.pp.filter_genes_dispersion(target_data, n_top_genes=ng)
+        if not isfloat:
+            if logt:
+                sc.pp.log1p(target_data)
 
         sc.pp.scale(target_data,zero_center=True,max_value=6)
         target_data.var_names=[i.upper() for i in list(target_data.var_names)]#avoding some gene have lower letter
