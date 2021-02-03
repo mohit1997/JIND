@@ -45,7 +45,10 @@ def main():
 	mat_round = np.rint(mat)
 	error = np.mean(np.abs(mat - mat_round))
 	if error == 0:
-		obj.preprocess(count_normalize=True, logt=False)
+		if "human_dataset_random" in args.train_path:
+			obj.preprocess(count_normalize=True, logt=False)	
+		else:
+			obj.preprocess(count_normalize=True, logt=True)
 
 	obj.dim_reduction(5000, 'Var')
 	# obj.normalize()
@@ -73,7 +76,7 @@ def main():
 	print(datetime.now()  - temp)
 	predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True, return_log=True)
 
-	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 32, 'cuda': False,
 					'epochs': 10}
 	obj.ftune(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)

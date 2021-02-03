@@ -108,12 +108,24 @@ class JindLib:
 
 		labels = self.labels
 
+		values, counts = np.unique(labels, return_counts=True)
+
+		
+
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
 		np.random.seed(config['seed'])
 		torch.backends.cudnn.deterministic = True
+
+		if np.min(counts) > 1:
+			X_train, X_val, y_train, y_val = train_test_split(
+				features, labels, test_size=config['val_frac'], stratify=labels, shuffle=True, random_state=config['seed'])
+		else:
+			X_train, X_val, y_train, y_val = train_test_split(
+				features, labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+
 		X_train, X_val, y_train, y_val = train_test_split(
-			features, labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+			features, labels, test_size=config['val_frac'], stratify=labels, shuffle=True, random_state=config['seed'])
 
 		train_dataset = DataLoaderCustom(X_train, y_train)
 		val_dataset = DataLoaderCustom(X_val, y_val)
@@ -1642,12 +1654,19 @@ class JindLib:
 		filtered_features = features[ind]
 		filtered_labels = preds[ind]
 
+		values, counts = np.unique(filtered_labels, return_counts=True)
+
 		torch.manual_seed(config['seed'])
 		torch.cuda.manual_seed(config['seed'])
 		np.random.seed(config['seed'])
 		torch.backends.cudnn.deterministic = True
-		X_train, X_val, y_train, y_val = train_test_split(
-			filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+
+		if np.min(counts) > 1:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], stratify=filtered_labels, shuffle=True, random_state=config['seed'])
+		else:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
 
 		train_dataset = DataLoaderCustom(X_train, y_train)
 		val_dataset = DataLoaderCustom(X_val, y_val)
