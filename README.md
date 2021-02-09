@@ -65,7 +65,7 @@ if error == 0:
 obj.dim_reduction(5000, 'Var')
 
 # Training hyperparameters
-train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False, 'epochs': 10} 
+train_config = {'val_frac': 0.2, 'seed': 0, 'batch_size': 128, 'cuda': False, 'epochs': 15} 
 # val_frac : proportion of data used for validation
 # seed : random seed
 # batch size : number of data points used for on iteration of gradient descent
@@ -101,8 +101,12 @@ if error == 0:
 obj.dim_reduction(5000, 'Var')
 
 # JIND Batch Alignment
-train_config = {'seed': 0, 'batch_size': 512, 'cuda': False,
-				'epochs': 20}
+train_config = {'seed': 0, 'batch_size': 128, 'cuda': False,
+                'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7}
+# gdecay: Generator weight decay
+# ddecay: Discriminator weight decay
+# maxcount: Number of total epochs  where the Generator Loss and Discrimiantor Loss is less than 0.78
+
 obj.remove_effect(train_gene_mat, test_gene_mat, train_config)
 
 # For evaluation (test labels are needed in this case)
