@@ -29,6 +29,8 @@ class SVMReject:
         self.model = None
         self.preprocessed = False
         self.path = path
+        self.logt = False
+        self.count_normalize = False
         os.system('mkdir -p {}'.format(self.path))
 
         self.raw_features = gene_mat.values
@@ -51,10 +53,36 @@ class SVMReject:
         self.val_stats = None
         self.scaler = None
 
-    def preprocess(self):
-        print('Applying log transformation ...')
-        self.preprocessed = True
-        self.raw_features = np.log(1 + self.raw_features)
+    def preprocess(self, count_normalize=False, target_sum=1e4, logt=True):
+        self.logt = logt
+        self.count_normalize = count_normalize
+        if count_normalize:
+            print('Normalizing counts ...')
+            self.raw_features = self.raw_features / (np.sum(self.raw_features, axis=1, keepdims=True) + 1e-5) * target_sum
+        if logt:
+            print('Applying log transformation ...')
+            self.raw_features = np.log(1 + self.raw_features)
+
+    def get_features(self, gene_mat):
+        features = gene_mat.values
+        if self.count_normalize:
+            features = features / (np.sum(features, axis=1, keepdims=True) + 1e-5) * 1e4
+        if self.logt:
+            features = np.log(1+features)
+        if self.reduce_method is not None:
+            if self.reduce_method == "Var":
+                selected_genes = [gene_mat.columns[i] for i in self.variances]
+                if selected_genes != self.selected_genes:
+                    print("Reorder the genes for the target batch in the same order as the source batch")
+                    sys.exit()
+                features = features[:, self.variances]
+            elif self.reduce_method == "PCA":
+                features = self.pca.transform(features)
+        if self.scaler is not None:
+            self.test_scaler = StandardScaler()
+            features = self.test_scaler.fit_transform(features)
+
+        return features
 
 
     def dim_reduction(self, num_features=5000, method='var', save_as=None):
@@ -72,6 +100,7 @@ class SVMReject:
             print('Variance based reduction ...')
             self.variances = np.argsort(-np.var(self.raw_features, axis=0))[:dim_size]
             self.reduced_features = self.raw_features[:, self.variances]
+            self.selected_genes = [self.gene_names[i] for i in self.variances]
             if save_as is not None:
                 np.save('{}_{}'.format(save_as, method), self.reduced_features)
 
@@ -113,17 +142,8 @@ class SVMReject:
         # Finally keep the best model
         self.model = model
 
-    def predict(self, test_gene_mat):
-        features = test_gene_mat.values
-        if self.preprocessed:
-            features = np.log(1+features)
-        if self.reduce_method is not None:
-            if self.reduce_method == "Var":
-                features = features[:, self.variances]
-            elif self.reduce_method == "PCA":
-                features = self.pca.transform(features)
-        if self.scaler is not None:
-            features = self.scaler.transform(features)
+    def predict(self, test_gene_mat, test=False):
+        features = self.get_features(test_gene_mat)
 
         model = self.model
 
