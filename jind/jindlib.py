@@ -1096,6 +1096,7 @@ class JindLib:
 
 		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
 		count = 0
+		dry_epochs = 0
 		best_rej_frac = 1.0
 		for epoch in range(config['epochs']):
 			if len(batch2_loader) < 50:
@@ -1137,6 +1138,7 @@ class JindLib:
 						model2.reinitialize()
 						# reset count as well
 						count = 0
+						dry_epochs = 0
 
 				
 				sample_loss = torch.nn.BCELoss()
@@ -1177,6 +1179,7 @@ class JindLib:
 						model2.reinitialize()
 						# reset count as well
 						count = 0
+						dry_epochs = 0
 
 				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
 			if (s2 < 0.78) and (s2 > 0.5) and (s1 < 0.78) and (s1 > 0.5):
@@ -1193,8 +1196,13 @@ class JindLib:
 					best_rej_frac = rej_frac
 					torch.save(model2.state_dict(), self.path+"/best_br.pth")
 				
-
+				dry_epochs = 0
 				if count >= max_count:
+					break
+			else:
+				dry_epochs += 1
+				if dry_epochs == 3:
+					print("Loss not improving, stopping alignment")
 					break
 
 		if not os.path.isfile(self.path+"/best_br.pth"):
@@ -1245,7 +1253,7 @@ class JindLib:
 			param.requires_grad = False
 
 		for param in model_copy.fc1.parameters():
-			param.requires_grad = True
+			param.requires_grad = False
 
 
 		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
