@@ -3,6 +3,7 @@ import scanpy.api as sc
 import os
 from numpy.random import seed
 from tensorflow.compat.v1 import set_random_seed
+import tensorflow as tf
 import pandas as pd
 import numpy as np
 import warnings
@@ -33,8 +34,9 @@ parser.add_argument('--runs', type=int, default=5,
 					help='column name for cell types')
 
 
-def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path):
+def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path, run):
 	os.makedirs(f"{res_path}", exist_ok=True)
+	set_random_seed(run)
 	clf=ic.transfer_learning_clf()
 	print(isfloat)
 	clf.fit(adata_train, adata_test, isfloat=isfloat, filter_cells=False, filter_genes=True, logt=True)
@@ -64,6 +66,11 @@ def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path):
 	return acc, frac_pred
 
 def main():
+	tf.config.threading.set_inter_op_parallelism_threads(40)
+	tf.config.threading.set_intra_op_parallelism_threads(40)
+	from keras import backend as K
+	K.set_session(K.tf.Session(config=K.tf.ConfigProto(intra_op_parallelism_threads=40, inter_op_parallelism_threads=40)))
+
 	startTime = datetime.now()
 	args = parser.parse_args()
 	train_batch = pd.read_pickle(args.train_path)
@@ -90,7 +97,7 @@ def main():
 	metrics = {'acc': []}
 	for run in range(args.runs):
 		dirname = os.path.dirname(args.train_path)
-		res_path = f"{dirname}/ItCluster_" + str(run)
+		res_path = f"{dirname}/ItClustertime_" + str(run)
 
 		adata_train = anndata.AnnData(train_mat.copy())
 		adata_train.obs['celltype'] = train_labels.copy()
@@ -102,12 +109,13 @@ def main():
 		adata_test.obs['celltype'] = test_labels.copy()
 		# adata_test.var = pd.DataFrame(index=test_labels.index)
 
-		acc, frac_pred = train_and_evaluate(adata_train, adata_test, test_labels.copy(), isfloat, res_path)
+		acc, frac_pred = train_and_evaluate(adata_train, adata_test, test_labels.copy(), isfloat, res_path, run)
 		metrics['acc'].append(acc)
 
-	res_path = f"{dirname}/ItCluster_mean"
+	res_path = f"{dirname}/ItClustertime_mean"
 	os.makedirs(f"{res_path}", exist_ok=True)
 	print(f"Mean acc {np.mean(metrics['acc'])} +- {np.std(metrics['acc'])} over {len(metrics['acc'])} runs")
+	print("Runtime {}".format(datetime.now() - startTime))
 	with open(f"{res_path}/test.log", "w") as text_file:
 		print(f"Mean acc {np.mean(metrics['acc'])} +- {np.std(metrics['acc'])} over {len(metrics['acc'])} runs", file=text_file)
 		print("Runtime {}".format(datetime.now() - startTime), file=text_file)

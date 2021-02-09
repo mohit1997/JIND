@@ -96,17 +96,15 @@ class transfer_learning_clf(object):
         #pre-processiong
         #1.pre filter cells
         if filter_cells:
-            prefilter_cells(target_data,min_genes=100) 
+            prefilter_cells(target_data, min_genes=100) 
         #2 pre_filter genes
         if filter_genes:
-            prefilter_genes(target_data,min_cells=10) # avoiding all gene is zeros
+            prefilter_genes(target_data, min_cells=10) # avoiding all gene is zeros
         #3 prefilter_specialgene: MT and ERCC
         prefilter_specialgenes(target_data)
         #4 normalization,var.genes,log1p,scale
         if not isfloat:
             sc.pp.normalize_per_cell(target_data)
-            if logt:
-                sc.pp.log1p(target_data)
 
         # select top genes
         if target_data.X.shape[0]<=1500:
@@ -116,13 +114,17 @@ class transfer_learning_clf(object):
         else:
             ng=2000
 
-        ng=min(ng, target_data.shape[1]) - 100
 
-        print(target_data)
-        print(ng, target_data.X.shape)
+        print("This is the final ItCluster")
 
     
-        sc.pp.highly_variable_genes(target_data, n_top_genes=ng)
+        if not isfloat:
+            sc.pp.filter_genes_dispersion(target_data, n_top_genes=ng)
+            if logt:
+                sc.pp.log1p(target_data)
+        else:
+            ng = min(target_data.X.shape[1], ng) - 100
+            sc.pp.highly_variable_genes(target_data, n_top_genes=ng)
 
         sc.pp.scale(target_data,zero_center=True,max_value=6)
         target_data.var_names=[i.upper() for i in list(target_data.var_names)]#avoding some gene have lower letter

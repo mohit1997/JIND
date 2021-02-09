@@ -28,10 +28,6 @@ class transfer_learning_clf(object):
             source_data, #adata
             target_data, #adata
             batch_size=256,
-            isfloat=False,
-            filter_cells=True,
-            filter_genes=True,
-            logt=True,
             maxiter=1000,
             pretrain_epochs=300,
             epochs_fit=5,
@@ -72,20 +68,15 @@ class transfer_learning_clf(object):
 
         #pre-processiong
         #1.pre filter cells
-        if filter_cells:
-            prefilter_cells(source_data,min_genes=100) 
+        prefilter_cells(source_data,min_genes=100) 
         #2 pre_filter genes
-        if filter_genes:
-            prefilter_genes(source_data,min_cells=10) # avoiding all gene is zeros
+        prefilter_genes(source_data,min_cells=10) # avoiding all gene is zeros
         #3 prefilter_specialgene: MT and ERCC
         prefilter_specialgenes(source_data)
         #4 normalization,var.genes,log1p,scale
+        sc.pp.normalize_per_cell(source_data)
         #5 scale
-        if not isfloat:
-            sc.pp.normalize_per_cell(source_data)
-            if logt:    
-                sc.pp.log1p(source_data)
-
+        sc.pp.log1p(source_data)
         sc.pp.scale(source_data,zero_center=True,max_value=6)
         source_data.var_names=[i.upper() for i in list(source_data.var_names)]#avoding some gene have lower letter
         adata_tmp.append(source_data) 
@@ -95,16 +86,13 @@ class transfer_learning_clf(object):
         target_data.obs_names_make_unique(join="-")
         #pre-processiong
         #1.pre filter cells
-        if filter_cells:
-            prefilter_cells(target_data, min_genes=100) 
+        prefilter_cells(target_data,min_genes=100) 
         #2 pre_filter genes
-        if filter_genes:
-            prefilter_genes(target_data, min_cells=10) # avoiding all gene is zeros
+        prefilter_genes(target_data,min_cells=10) # avoiding all gene is zeros
         #3 prefilter_specialgene: MT and ERCC
         prefilter_specialgenes(target_data)
         #4 normalization,var.genes,log1p,scale
-        if not isfloat:
-            sc.pp.normalize_per_cell(target_data)
+        sc.pp.normalize_per_cell(target_data)
 
         # select top genes
         if target_data.X.shape[0]<=1500:
@@ -114,18 +102,8 @@ class transfer_learning_clf(object):
         else:
             ng=2000
 
-
-        print("This is the final ItCluster")
-
-    
-        if not isfloat:
-            sc.pp.filter_genes_dispersion(target_data, n_top_genes=ng)
-            if logt:
-                sc.pp.log1p(target_data)
-        else:
-            ng = min(target_data.X.shape[1], ng) - 100
-            sc.pp.highly_variable_genes(target_data, n_top_genes=ng)
-
+        sc.pp.filter_genes_dispersion(target_data, n_top_genes=ng)
+        sc.pp.log1p(target_data)
         sc.pp.scale(target_data,zero_center=True,max_value=6)
         target_data.var_names=[i.upper() for i in list(target_data.var_names)]#avoding some gene have lower letter
         adata_tmp.append(target_data)
@@ -193,7 +171,7 @@ class transfer_learning_clf(object):
         adata_test.obs["dec"+str(self.save_atr)]=labels
         adata_test.obs["maxprob"+str(self.save_atr)]=q_pred.max(1)
         adata_test.obsm["prob_matrix"+str(self.save_atr)]=q_pred
-        # adata_test.obsm["X_pcaZ"+str(self.save_atr)]=sc.tl.pca(Embeded_z)
+        adata_test.obsm["X_pcaZ"+str(self.save_atr)]=sc.tl.pca(Embeded_z)
         
         self.adata_train=adata_train
         self.adata_test=adata_test
@@ -259,6 +237,7 @@ class transfer_learning_clf(object):
         print("Doing t-SNE!")
         sc.tl.tsne(self.adata_test,use_rep="X_Embeded_z"+str(self.save_atr),learning_rate=150,n_jobs=10)
         return self.adata_test.obsm['X_tsne']
+
 
 
 
