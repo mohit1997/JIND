@@ -39,6 +39,12 @@ train_gene_mat =  source_batch.drop(['labels'], 1) # extract gene expression mat
 
 test_labels = target_batch['labels'] # extract cell-types (Cells X 1)
 test_gene_mat =  target_batch.drop(['labels'], 1) # extract gene expression matrix (Cells X Genes)
+
+# Select common genes and use the same ordering for train and the test gene matrices
+common_genes = list(set(train_gene_mat.columns).intersection(set(test_gene_mat.columns)))
+common_genes.sort()
+train_gene_mat = train_gene_mat[list(common_genes)]
+test_gene_mat = test_gene_mat[list(common_genes)]
 ```
 
 ### 2. Create JIND Object and Train
@@ -53,7 +59,7 @@ mat_round = np.rint(mat)
 error = np.mean(np.abs(mat - mat_round))
 if error == 0:
 	print("Data is int")
-	obj.preprocess()
+	obj.preprocess(count_normalize=True, logt=True)
 
 # Select top 5000 genes by maximum variance (all genes are used if less than 5000 are avialable)
 obj.dim_reduction(5000, 'Var')
@@ -90,7 +96,7 @@ mat_round = np.rint(mat)
 error = np.mean(np.abs(mat - mat_round))
 if error == 0:
 	print("Data is int")
-	obj.preprocess()
+	obj.preprocess(count_normalize=True, logt=True)
 
 obj.dim_reduction(5000, 'Var')
 
