@@ -13186,7 +13186,7 @@ div#notebook {
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Training-JIND-Classifier">Training JIND Classifier<a class="anchor-link" href="#Training-JIND-Classifier">&#182;</a></h1>
+<h1 id="Training-NN-based-Prediction-Model">Training NN-based Prediction Model<a class="anchor-link" href="#Training-NN-based-Prediction-Model">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -13200,7 +13200,7 @@ div#notebook {
 <span class="n">train_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;val_frac&#39;</span><span class="p">:</span> <span class="mf">0.2</span><span class="p">,</span> <span class="s1">&#39;seed&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;batch_size&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span> <span class="s1">&#39;cuda&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
                 <span class="s1">&#39;epochs&#39;</span><span class="p">:</span> <span class="mi">15</span><span class="p">}</span>
 
-<span class="n">obj</span><span class="o">.</span><span class="n">train_classifier</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">train_config</span><span class="p">,</span> <span class="n">cmat</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">obj</span><span class="o">.</span><span class="n">train_classifier</span><span class="p">(</span><span class="n">config</span><span class="o">=</span><span class="n">train_config</span><span class="p">,</span> <span class="n">cmat</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># Creates confusion matrix on the validation data</span>
 </pre></div>
 
     </div>
@@ -13574,7 +13574,7 @@ Epoch 14 Train: 0.0002:  20%|█▉        | 10/51 [00:00&lt;00:00, 97.44it/s]</
 <div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
 </div><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Evaluating-JIND-Classifier">Evaluating JIND Classifier<a class="anchor-link" href="#Evaluating-JIND-Classifier">&#182;</a></h1>
+<h1 id="Evaluating-NN-based-Prediction-Model">Evaluating NN-based Prediction Model<a class="anchor-link" href="#Evaluating-NN-based-Prediction-Model">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -14021,7 +14021,7 @@ Test Acc Raw 0.9703 Eff 0.9881 Rej 0.0880
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">train_config</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;val_frac&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;seed&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;batch_size&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span> <span class="s1">&#39;cuda&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
                 <span class="s1">&#39;epochs&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">}</span>
-<span class="n">obj</span><span class="o">.</span><span class="n">ftune</span><span class="p">(</span><span class="n">test_mat</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+<span class="n">obj</span><span class="o">.</span><span class="n">ftune</span><span class="p">(</span><span class="n">test_mat</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span> <span class="c1"># Creates confusion matrix on the validation data</span>
 </pre></div>
 
     </div>
