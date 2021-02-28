@@ -32,6 +32,8 @@ jupyter notebook
 1. [PBMC Demo](/notebooks/PBMC-demo.ipynb) uses provided data to run JIND. It takes less then 5 minutes to finish. The expected output is provided as an [HTML file](/notebooks/PBMC-demo.html).
 2. [PBMC Scratch](/notebooks/PBMC-demo.ipynb) downloads raw data and creates source and target batch before running JIND. It takes less then 5 minutes to finish. The expected output is provided as an [HTML file](/notebooks/Process-data.html).
 
+Note: Please use a browser such as Google Chrome or Mozilla Firefox to view the provided HTML files.
+
 
 
 ## Executing JIND
