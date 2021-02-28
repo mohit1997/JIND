@@ -29,7 +29,7 @@ To run a jupyer notebook, run the following command in `JIND` directory
 jupyter notebook
 ```
 
- [PBMC Demo](/notebooks/PBMC-demo.ipynb) takes less then 10 minutes to finish. The output is already provided in the demo notebook.
+ [PBMC Demo](/notebooks/PBMC-demo.ipynb) takes less then 10 minutes to finish. The expected output is provided as an [HTML file](/notebooks/PBMC-demo.html).
 
 ## Executing JIND
 
