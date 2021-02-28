@@ -7,22 +7,29 @@
 
 # Prerequisites
 1. Linux or macOS
-2. Python 3.6 or + (tested on 3.6.8)
-3. CPU or NVIDIA GPU + CUDA CuDNN
+2. [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+3. Python 3.6 or + (tested on 3.6.8)
+4. CPU or NVIDIA GPU + CUDA CuDNN
 
-# Installation
+# Installation (takes 5 minutes)
 
 ```bash
 git clone https://github.com/mohit1997/JIND.git
 cd JIND
-python3 -m venv tc
-source tc/bin/activate
+conda create -n jind python=3.6.8
+conda activate jind
 pip install -e .
 ```
 
 # Examples
 
 ## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb)
+To run a jupyer notebook, run the following command in `JIND` directory
+```bash
+jupyter notebook
+```
+
+ [PBMC Demo](/notebooks/PBMC-demo.ipynb) takes less then 10 minutes to finish. The output is already provided in the demo notebook.
 
 ## Executing JIND
 
