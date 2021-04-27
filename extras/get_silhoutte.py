@@ -33,9 +33,14 @@ def main():
 	mat = train_mat.values
 	mat_round = np.rint(mat)
 	error = np.mean(np.abs(mat - mat_round))
+	print(mat)
+	print(np.max(mat - np.rint(mat)))
+	print(f"Error = {error}")
 	if error == 0:
-		print("Data is int")
-		obj.preprocess()
+		if "human_dataset_random" in args.train_path:
+			obj.preprocess(count_normalize=True, logt=False)	
+		else:
+			obj.preprocess(count_normalize=True, logt=True)
 
 	obj.dim_reduction(5000, 'Var')
 

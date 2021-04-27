@@ -12,8 +12,8 @@ from sklearn.metrics import confusion_matrix
 np.random.seed(0)
 
 parser = argparse.ArgumentParser(description='RUN JIND')
-parser.add_argument('--file', default="datasets/human_blood_integrated_01/train.pkl", type=str,
-					help='path to train data frame with labels')
+parser.add_argument('--file', default="datasets/human_blood_integrated_01/JIND/train.pkl", type=str,
+					help='path to assignment file')
 
 def main():
 	args = parser.parse_args()

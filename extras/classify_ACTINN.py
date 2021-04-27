@@ -10,6 +10,7 @@ import argparse
 import timeit
 from datetime import datetime
 run_time = timeit.default_timer()
+from sklearn import metrics
 from tensorflow.python.framework import ops
 
 np.random.seed(0)
@@ -46,7 +47,7 @@ def scale_sets(sets, isint=False):
         sep_point.append(sets[i].shape[1])
     total_set = np.array(pd.concat(sets, axis=1, sort=False), dtype=np.float32)
     if isint:
-        # total_set = np.divide(total_set, np.sum(total_set, axis=0, keepdims=True)) * 10000
+        total_set = np.divide(total_set, np.sum(total_set, axis=0, keepdims=True)) * 10000
         total_set = np.log2(total_set+1)
     #     expr = np.sum(total_set, axis=1)
     #     total_set = total_set[np.logical_and(expr >= np.percentile(expr, 1), expr <= np.percentile(expr, 99)),]
@@ -364,7 +365,14 @@ if __name__ == '__main__':
     predicted_label = []
     for i in range(len(test_predict)):
         predicted_label.append(label_to_type_dict[test_predict[i]])
+    
+    f1_scores = metrics.f1_score(list(test_labels), predicted_label, average=None)
+    median_f1_score = np.median(f1_scores)
+    mean_f1_score = np.mean(f1_scores)
+    weighted_f1_score = metrics.f1_score(list(test_labels), predicted_label, average="weighted")
+
     predicted_label = pd.DataFrame({"cellname":barcode, "raw_predictions": predicted_label, "labels": list(test_labels), "max_prob": list(max_prob)})
+
 
     predicted_label['predictions'] = predicted_label['raw_predictions']
     index = predicted_label['max_prob'] > 0.9
@@ -377,7 +385,7 @@ if __name__ == '__main__':
 
     predicted_label = predicted_label.set_index("cellname")
 
-    log = "Test Acc {:.4f} Eff {:4f} Filtered {:4f}".format(raw_acc, eff, filtered)
+    log = "Test Acc {:.4f} Eff {:4f} Filtered {:4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}".format(raw_acc, eff, filtered, mean_f1_score, median_f1_score, weighted_f1_score)
     print(log)
     with open("{}/test.log".format(path), "w") as text_file:
         print("{}".format(log), file=text_file)

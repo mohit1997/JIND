@@ -20,6 +20,7 @@ import anndata
 import pandas as pd
 import argparse
 from datetime import datetime
+from sklearn import metrics
 
 np.random.seed(0)
 
@@ -33,6 +34,17 @@ parser.add_argument('--column', type=str, default='labels',
 parser.add_argument('--runs', type=int, default=5,
 					help='column name for cell types')
 
+def dict_mean(dict_list):
+	mean_dict = {}
+	for key in dict_list[0].keys():
+		mean_dict[key] = np.mean([d[key] for d in dict_list])
+	return mean_dict
+
+def dict_std(dict_list):
+	mean_dict = {}
+	for key in dict_list[0].keys():
+		mean_dict[key] = np.std([d[key] for d in dict_list])
+	return mean_dict
 
 def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path, run):
 	os.makedirs(f"{res_path}", exist_ok=True)
@@ -57,13 +69,19 @@ def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path, 
 	results = pd.DataFrame(results, index=test_labels.index)
 	results['predictions'].loc[pred['cell_id']] = list(pred['predictions'])
 
+	f1_scores = metrics.f1_score(results['labels'], results['predictions'], average=None)
+	median_f1_score = np.median(f1_scores)
+	mean_f1_score = np.mean(f1_scores)
+	weighted_f1_score = metrics.f1_score(results['labels'], results['predictions'], average="weighted")
+
 	print(np.mean(results['predictions'] == results['labels']))
 
 	print(f"Acc: {acc} Frac Pred: {frac_pred}")
 	with open(f"{res_path}/test.log", "w") as text_file:
-		print(f"Acc: {acc} Frac Pred: {frac_pred}", file=text_file)
+		print(f"Acc: {acc} Frac Pred: {frac_pred} mf1 {mean_f1_score:.4f} medf1 {median_f1_score:.4f} wf1 {weighted_f1_score:.4f}", file=text_file)
 	results.to_pickle(f"{res_path}/ItCluster_assignment.pkl")
-	return acc, frac_pred
+	dic = {'acc': acc, 'frac_pred': frac_pred, "mf1": mean_f1_score, "medf1": median_f1_score, "wf1": weighted_f1_score}
+	return dic
 
 def main():
 	tf.config.threading.set_inter_op_parallelism_threads(40)
@@ -94,10 +112,10 @@ def main():
 	isfloat = error != 0
 
 
-	metrics = {'acc': []}
+	metrics = []
 	for run in range(args.runs):
 		dirname = os.path.dirname(args.train_path)
-		res_path = f"{dirname}/ItClustertime_" + str(run)
+		res_path = f"{dirname}/ItClusterfiltercells_" + str(run)
 
 		adata_train = anndata.AnnData(train_mat.copy())
 		adata_train.obs['celltype'] = train_labels.copy()
@@ -109,15 +127,23 @@ def main():
 		adata_test.obs['celltype'] = test_labels.copy()
 		# adata_test.var = pd.DataFrame(index=test_labels.index)
 
-		acc, frac_pred = train_and_evaluate(adata_train, adata_test, test_labels.copy(), isfloat, res_path, run)
-		metrics['acc'].append(acc)
+		result_dic = train_and_evaluate(adata_train, adata_test, test_labels.copy(), isfloat, res_path, run)
+		metrics.append(result_dic)
 
-	res_path = f"{dirname}/ItClustertime_mean"
+	avg_results = dict_mean(metrics)
+	std_results = dict_std(metrics)
+
+	res_path = f"{dirname}/ItClusterfiltercells_mean"
 	os.makedirs(f"{res_path}", exist_ok=True)
-	print(f"Mean acc {np.mean(metrics['acc'])} +- {np.std(metrics['acc'])} over {len(metrics['acc'])} runs")
+
+	out_string = ""
+	for i, j in avg_results.items():
+		out_string = out_string + f" mean {i}: {j}, std {i}: {std_results[i]}"
+	out_string = out_string + f" over {len(metrics)} runs"
+	print(out_string)
 	print("Runtime {}".format(datetime.now() - startTime))
 	with open(f"{res_path}/test.log", "w") as text_file:
-		print(f"Mean acc {np.mean(metrics['acc'])} +- {np.std(metrics['acc'])} over {len(metrics['acc'])} runs", file=text_file)
+		print(out_string, file=text_file)
 		print("Runtime {}".format(datetime.now() - startTime), file=text_file)
 
 	
