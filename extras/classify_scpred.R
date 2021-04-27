@@ -1,10 +1,13 @@
 if(!require("argparse")){
   install.packages("argparse")
 }
+# devtools::install_github("powellgenomicslab/scPred", ref = "31e7358952578b88a1d4ab4798a7f2e10bf37c42")
 library("argparse")
 library("scPred")
 library("tidyverse")
 library('Seurat')
+library(Rfast)
+library(doParallel)
 library(caret)
 library(irlba)
 if(!require(reshape)){
@@ -15,12 +18,31 @@ library(reticulate)
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
 
+check.integer <- function(x) {
+  mean(x == round(x))
+}
+
+f1_score <- function(predicted, expected, positive.class="1") {
+  predicted <- factor(as.character(predicted), levels=levels(factor(expected)))
+  expected  <- as.factor(expected)
+  cm = as.matrix(table(expected, predicted))
+  
+  precision <- diag(cm) / colSums(cm)
+  recall <- diag(cm) / rowSums(cm)
+  f1 <-  ifelse(precision + recall == 0, 0, 2 * precision * recall / (precision + recall))
+  
+  #Assuming that F1 is zero when it's not possible compute it
+  f1[is.na(f1)] <- 0
+  
+  return (list(f1, rowsums(cm)/sum(rowsums(cm))))
+}
+
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run scPred')
-parser$add_argument('--train_path', default="datasets/mouse_dataset_random/train.pkl", type="character",
+parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/mouse_atlas_random/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="datasets/mouse_dataset_random/test.pkl", type="character",
+parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/human_atlas_random/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -156,9 +178,31 @@ for(i in 1:nrow(metadata2))
 metadata1 = as.data.frame(metadata1)
 metadata2 = as.data.frame(metadata2)
 
-params = preProcess(mat1)
-scaled_mat1 = predict(params, mat1)
-scaled_mat2 = predict(params, mat2)
+m1var = apply(mat1, 2, var)
+indices = m1var != 0
+mat1_filt = mat1[, indices]
+mat2_filt = mat2[, indices]
+isint = check.integer(mat1_filt[1:100, 1:100]) == 1.
+
+if (isint == TRUE){
+  # mat1_filt = as.data.frame(scale(mat1_filt, center = FALSE,
+  #       scale = colSums(mat1_filt))) * 1e4
+  # mat2_filt = as.data.frame(scale(mat2_filt, center = FALSE,
+  #                   scale = colSums(mat2_filt))) * 1e4
+  mat1_filt = mat1_filt / (1e-5 + rowSums(mat1_filt))
+  mat2_filt = mat2_filt / (1e-5 + rowSums(mat2_filt))
+  mat1_filt = log(1 + mat1_filt)
+  mat2_filt = log(1 + mat2_filt)
+}
+
+
+cl <- makePSOCKcluster(60)
+registerDoParallel(cl)
+
+
+params = preProcess(mat1_filt)
+scaled_mat1 = predict(params, mat1_filt)
+scaled_mat2 = predict(params, mat2_filt)
 
 train_data = as.matrix(t(scaled_mat1))
 
@@ -169,7 +213,7 @@ scPred::metadata(scp) <- metadata1
 scp <- getFeatureSpace(scp, pVar = "labels")
 
 plotEigen(scp, group = "labels")
-scp <- trainModel(scp, seed = 66)
+scp <- trainModel(scp, seed = 66, allowParallel = TRUE)
 
 # scp1 <- scPredict(scp, newData = test_data, threshold = 0.0)
 # scp1@predMeta <- metadata2
@@ -184,9 +228,6 @@ scp_raw <- scPredict(scp, newData = test_data, threshold = 0.)
 scp_raw@predMeta <- metadata2
 pred_raw = getPredictions(scp_raw)
 
-comparison = metadata2['labels'] == pred_raw['predClass']
-raw = mean(comparison)
-
 scp_filt <- scPredict(scp, newData = test_data, threshold = 0.9)
 scp_filt@predMeta <- metadata2
 pred_filt = getPredictions(scp_filt)
@@ -199,14 +240,24 @@ pred_filt$predictions[pred_filt$predictions == "unassigned"] = "Unassigned"
 
 metadata2$labels = gsub('lab.', '', metadata2$labels)
 
+outputs = f1_score(factor(pred_raw$raw_predictions, levels=levels(factor(metadata2$labels))), factor(metadata2$labels))
+mean_f1 = mean(outputs[[1]])
+median_f1 = median(outputs[[1]])
+weighted_f1 = sum(outputs[[2]] * outputs[[1]])
+
 results = cbind(pred_raw["raw_predictions"], pred_filt["predictions"], metadata2["labels"])
 colnames(results) = c("raw_predictions", "predictions", "labels")
 index = pred_filt['predictions'] != "Unassigned"
+
+rcomparison = metadata2$labels == pred_raw$raw_predictions
+raw = mean(rcomparison)
 
 comparison = metadata2[index, 'labels'] == pred_filt[index, 'predictions']
 
 eff = mean(comparison)
 filtered = 1 - mean(index)
+
+stopCluster(cl)
 
 pkl <- import("pickle")
 path = sprintf("%s/scPred", dirname(args$train_path))
@@ -215,8 +266,8 @@ dir.create(path, showWarnings = FALSE)
 file = sprintf("%s/test.log", path)
 
 end_time <- Sys.time()
-print(sprintf("Test Accuracy %f w.f. %f filtered %f", raw, eff, filtered))
-cat(sprintf("Test Accuracy %f w.f. %f filtered %f \n ", raw, eff, filtered), file = file)
+print(sprintf("Test raw %.4f eff %.4f rej %.4f mf1 %.4f medf1 %.4f wf1 %.4f", raw, eff, filtered, mean_f1, median_f1, weighted_f1))
+cat(sprintf("Test raw %.4f eff %.4f rej %.4f mf1 %.4f medf1 %.4f wf1 %.4f", raw, eff, filtered, mean_f1, median_f1, weighted_f1), file = file)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
 output_path = sprintf("%s/scPred_assignment.pkl", path)

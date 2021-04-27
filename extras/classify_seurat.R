@@ -18,12 +18,27 @@ library(reshape)
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
 
+f1_score <- function(predicted, expected, positive.class="1") {
+  predicted <- factor(as.character(predicted), levels=levels(factor(expected)))
+  expected  <- as.factor(expected)
+  cm = as.matrix(table(expected, predicted))
+  
+  precision <- diag(cm) / colSums(cm)
+  recall <- diag(cm) / rowSums(cm)
+  f1 <-  ifelse(precision + recall == 0, 0, 2 * precision * recall / (precision + recall))
+  
+  #Assuming that F1 is zero when it's not possible compute it
+  f1[is.na(f1)] <- 0
+  
+  return (list(f1, rowsums(cm)/sum(rowsums(cm))))
+}
+
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run Seurat Classifier')
-parser$add_argument('--train_path', default="datasets/pancreas_integrated_01/train.pkl", type="character",
+parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_01/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="datasets/pancreas_integrated_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_01/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -124,6 +139,10 @@ out = apply(scores, 1, max)
 results[, "predictions"][out < 0.9] = "Unassigned"
 filtered_results = results[out > 0.9]
 
+outputs = f1_score(factor(results[, "raw_predictions"], levels=levels(factor(results[, "labels"]))), factor(results[, "labels"]))
+mean_f1 = mean(outputs[[1]])
+median_f1 = median(outputs[[1]])
+weighted_f1 = sum(outputs[[2]] * outputs[[1]])
 
 cm = confusionMatrix(factor(results[, "raw_predictions"], levels=levels(factor(results[, "labels"]))), factor(results[, "labels"]))
 cm = as.data.frame.matrix(cm$table)
@@ -138,6 +157,9 @@ end_time <- Sys.time()
 cat(sprintf("Raw Accuracy %f \n", mean(results[,"raw_predictions"] == results[, "labels"])), file = file)
 cat(sprintf("Eff Accuracy %f \n", mean(results[,"predictions"] == results[, "labels"])), file = file, append=TRUE)
 cat(sprintf("Filtered %f \n", mean(out < 0.9)), file = file, append=TRUE)
+cat(sprintf("mf1 %f \n", mean_f1), file = file, append=TRUE)
+cat(sprintf("medf1 %f \n", median_f1), file = file, append=TRUE)
+cat(sprintf("wf1 %f \n", weighted_f1), file = file, append=TRUE)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
 output_path = sprintf("%s/seurat_assignment.pkl", path)
