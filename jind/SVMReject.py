@@ -9,6 +9,7 @@ import pandas as pd
 from torch import optim
 from torch.autograd import Variable
 from .utils import DataLoaderCustom, ConfusionMatrixPlot, compute_ap, normalize
+from sklearn import metrics
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from .models import Classifier, Discriminator, ClassifierBig
@@ -159,12 +160,18 @@ class SVMReject:
             preds = self.filter_pred(y_pred, frac)
         else:
             preds = np.argmax(y_pred, axis=1)
+
+        f1_scores = metrics.f1_score(y_true, np.argmax(y_pred, axis=1), average=None)
+        median_f1_score = np.median(f1_scores)
+        mean_f1_score = np.mean(f1_scores)
+        weighted_f1_score = metrics.f1_score(y_true, np.argmax(y_pred, axis=1), average="weighted")
+
         pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
         test_acc = (y_true == preds).mean()
         ind = preds != self.n_classes
         pred_acc = (y_true[ind] == preds[ind]).mean()
         filtered = 1 - np.mean(ind)
-        print('Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered))
+        print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}'.format(pretest_acc, pred_acc, filtered, mean_f1_score, median_f1_score, weighted_f1_score))
 
         if name is not None:
             cm = normalize(confusion_matrix(y_true,
@@ -198,7 +205,7 @@ class SVMReject:
         
         predicted_label = predicted_label.set_index("cellname")
         if return_log:
-            return predicted_label, 'Test Acc Pre {:.4f} Post {:.4f} Eff {:.4f} Filtered {:.4f}'.format(pretest_acc, test_acc, pred_acc, filtered)
+            return predicted_label, 'Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}'.format(pretest_acc, pred_acc, filtered, mean_f1_score, median_f1_score, weighted_f1_score)
         return predicted_label
 
     def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):

@@ -33,8 +33,6 @@ def main():
 	mat = train_mat.values
 	mat_round = np.rint(mat)
 	error = np.mean(np.abs(mat - mat_round))
-	print(mat)
-	print(np.max(mat - np.rint(mat)))
 	print(f"Error = {error}")
 	if error == 0:
 		if "human_dataset_random" in args.train_path:
@@ -46,10 +44,36 @@ def main():
 
 	df, log = obj.get_complexity()
 	
-	with open("{}/test.log".format(path), "w") as text_file:
+	with open("{}/test_source.log".format(path), "w") as text_file:
 		print("{}".format(log), file=text_file)
 
-	df.to_pickle("{}/tSNE_embeddings.pkl".format(path))
+	df.to_pickle("{}/tSNE_embeddings_source.pkl".format(path))
+
+
+	train_mat = test_batch.drop(lname, axis=1)
+	train_labels = test_batch[lname]
+
+	path = os.path.dirname(args.train_path) + "/Silhoutte_tSNE"
+
+	obj = JindLib(train_mat, train_labels, path=path)
+	mat = train_mat.values
+	mat_round = np.rint(mat)
+	error = np.mean(np.abs(mat - mat_round))
+	print(f"Error = {error}")
+	if error == 0:
+		if "human_dataset_random" in args.train_path:
+			obj.preprocess(count_normalize=True, logt=False)	
+		else:
+			obj.preprocess(count_normalize=True, logt=True)
+
+	obj.dim_reduction(5000, 'Var')
+
+	df, log = obj.get_complexity()
+	
+	with open("{}/test_target.log".format(path), "w") as text_file:
+		print("{}".format(log), file=text_file)
+
+	df.to_pickle("{}/tSNE_embeddings_target.pkl".format(path))
 
 
 if __name__ == "__main__":

@@ -15,8 +15,16 @@ if(!require(reshape)){
   install.packages("reshape")
 }
 library(reshape)
+# library(future)
+# plan("multiprocess", workers = 4)
+# options(future.globals.maxSize= 891289600)
+
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
+
+check.integer <- function(x) {
+  mean(x == round(x))
+}
 
 f1_score <- function(predicted, expected, positive.class="1") {
   predicted <- factor(as.character(predicted), levels=levels(factor(expected)))
@@ -97,9 +105,15 @@ for(i in 1:nrow(metadata2))
 metadata1 = as.data.frame(metadata1)
 metadata2 = as.data.frame(metadata2)
 
+isint = check.integer(mat1[1:100, 1:100]) == 1.
+
 reference <- CreateSeuratObject(t(mat1), meta.data = metadata1)
 query <- CreateSeuratObject(t(mat2), meta.data = metadata2)
 
+if (isint == TRUE){
+  reference <- NormalizeData(reference)
+  query <- NormalizeData(query)
+}
 
 reference <- FindVariableFeatures(reference, selection.method = "vst", nfeatures = 2000)
 reference <- ScaleData(reference, verbose = FALSE)
@@ -154,6 +168,7 @@ dir.create(path, showWarnings = FALSE)
 
 file = sprintf("%s/test.log", path)
 end_time <- Sys.time()
+end_time - start_time
 cat(sprintf("Raw Accuracy %f \n", mean(results[,"raw_predictions"] == results[, "labels"])), file = file)
 cat(sprintf("Eff Accuracy %f \n", mean(results[,"predictions"] == results[, "labels"])), file = file, append=TRUE)
 cat(sprintf("Filtered %f \n", mean(out < 0.9)), file = file, append=TRUE)

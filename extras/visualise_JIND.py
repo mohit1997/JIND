@@ -36,7 +36,7 @@ def main():
 	test_mat = test_batch.drop(lname, axis=1)
 	test_labels = test_batch[lname]
 
-	path = os.path.dirname(args.train_path) + "/JIND_raw_0"
+	path = os.path.dirname(args.train_path) + "/JIND_rawtop_0"
 
 	with open('{}/JindLib_obj.pkl'.format(path), 'rb') as f:
 		obj = pickle.load(f)
@@ -48,9 +48,15 @@ def main():
 	error = np.mean(np.abs(mat - mat_round))
 	if error == 0:
 		print("Data is int")
-		obj.preprocess()
+		if "human_dataset_random" in args.train_path:
+			obj.preprocess(count_normalize=True, logt=False)	
+		else:
+			obj.preprocess(count_normalize=True, logt=True)
 
 	obj.dim_reduction(5000, 'Var')
+
+	# Skip JIND+ model
+	# obj.set_test_model("BR")
 
 	visobj = JindVis(test_mat, test_labels, obj, direc="{}/vis".format(path))
 	visobj.setup(test=True)

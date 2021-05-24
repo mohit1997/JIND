@@ -6,7 +6,13 @@ library(Seurat)
 library(reticulate)
 use_virtualenv("~/mohit/torch-cpu", required = TRUE)
 py_config()
+library(future)
+plan("multiprocess", workers = 40)
 
+options(future.globals.maxSize= 891289600)
+check.integer <- function(x) {
+  mean(x == round(x))
+}
 
 
 parser <- ArgumentParser(description='Run Seurat Integration')
@@ -14,13 +20,16 @@ parser$add_argument('--input_path1', default="datasets/human_blood_01/train.pkl"
                     help='path to input data frame1')
 parser$add_argument('--input_path2', default="datasets/human_blood_01/test.pkl", type="character",
                     help='path to input data frame2')
-parser$add_argument('--output_path', type="character",
+parser$add_argument('--output_path', type="character", default="data/pancreas_raw_02_sintegrated.pkl",
                     help='path to output data frame')
 parser$add_argument('--column', type="character", default='batch',
                     help='column name to split along')
 parser$add_argument('--removables', type="character", nargs='+',
                     help='columns to be removed')
 args <- parser$parse_args()
+
+start_time <- Sys.time()
+
 input1 = args$input_path1
 input2 = args$input_path2
 out_path = args$output_path
@@ -48,6 +57,8 @@ mat = rbind(mat1, mat2)
 metadata = rbind(metadata1, metadata2)
 rownames(metadata) = rownames(mat)
 
+isint = check.integer(mat[1:100, 1:100]) == 1.
+
 start_time <- Sys.time()
 
 sobj <- CreateSeuratObject(t(mat), meta.data = metadata)
@@ -68,6 +79,20 @@ sobj.list <- SplitObject(sobj, split.by = "batch")
 # 
 reference.list <- sobj.list
 
+if (isint == TRUE){
+  reference.list <- lapply(X = reference.list, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+  })
+} else {
+  reference.list <- lapply(X = reference.list, FUN = function(x) {
+    # x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+  })
+}
+
+
+
 sobj.anchors <- FindIntegrationAnchors(object.list = reference.list, dims = 1:30)
 
 sobj.integrated <- IntegrateData(anchorset = sobj.anchors, dims = 1:30)
@@ -79,6 +104,7 @@ int_mat = as.data.frame(t(int_mat))
 
 end_time <- Sys.time()
 end_time - start_time
+
 final_mat = cbind(int_mat, metadata)
 
 pkl <- import("pickle")

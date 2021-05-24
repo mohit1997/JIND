@@ -11,6 +11,7 @@ class Classifier(nn.Module):
 			# nn.Dropout(p=0.3),
 			nn.Linear(inp_dim, headdim),
 			nn.Dropout(p=0.2),
+			GaussianNoise(sigma=0.2),
 			# nn.ReLU(inplace=False),
 			# nn.Linear(headdim, headdim),
 			# nn.ReLU(inplace=False),

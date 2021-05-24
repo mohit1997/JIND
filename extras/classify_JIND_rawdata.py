@@ -69,7 +69,7 @@ def main():
 	# predicted_label1_, log1_ = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtftuneencoder.pdf", test="modelftuned", return_log=True)
 
 	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': False,
-					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7}
+					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7, 'sigma': 0.2}
 
 	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
@@ -78,7 +78,7 @@ def main():
 
 	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 32, 'cuda': False,
 					'epochs': 10}
-	obj.ftune(test_mat, train_config)
+	obj.ftune_top(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)
 	
 	obj.to_pickle("JindLib_obj.pkl")

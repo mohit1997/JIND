@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from .models import Classifier, Discriminator, ClassifierBig
 from matplotlib import pyplot as plt
+from sklearn import metrics
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix, silhouette_score
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
@@ -215,6 +216,15 @@ class JindLib:
 		weights = 2./(0.01+counts) / len(unique)
 		return weights, len(unique)
 
+	def compute_weights(self, labs):
+		unique, counts = np.unique(self.labels, return_counts=True)
+		labs = np.concatenate([labs.copy().reshape(-1), unique])
+		unique, counts = np.unique(labs, return_counts=True)
+		counts = counts - 1
+		counts = counts/np.sum(counts)
+		weights = 2./(0.01+counts) / len(unique)
+		return weights, len(unique)
+
 	def load_model(self, path):
 		_, n_classes = self.get_class_weights()
 		model = Classifier(self.reduced_features.shape[1], 256, MODEL_WIDTH, n_classes)
@@ -344,16 +354,22 @@ class JindLib:
 	def evaluate(self, test_gene_mat, test_labels, frac=0.05, name=None, test=False, return_log=False):
 		y_pred = self.predict(test_gene_mat, test=test)
 		y_true = np.array([self.class2num[i] if (i in self.class2num.keys()) else (self.n_classes + 1) for i in test_labels])
+
 		if frac != 0:
 			preds = self.filter_pred(y_pred, frac)
 		else:
 			preds = np.argmax(y_pred, axis=1)
+		f1_scores = metrics.f1_score(y_true, np.argmax(y_pred, axis=1), average=None)
+		median_f1_score = np.median(f1_scores)
+		mean_f1_score = np.mean(f1_scores)
+		weighted_f1_score = metrics.f1_score(y_true, np.argmax(y_pred, axis=1), average="weighted")
+
 		pretest_acc = (y_true == np.argmax(y_pred, axis=1)).mean() 
 		test_acc = (y_true == preds).mean()
 		ind = preds != self.n_classes
 		pred_acc = (y_true[ind] == preds[ind]).mean()
 		filtered = 1 - np.mean(ind)
-		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered))
+		print('Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}'.format(pretest_acc, pred_acc, filtered, mean_f1_score, median_f1_score, weighted_f1_score))
 
 		if name is not None:
 			cm = normalize(confusion_matrix(y_true,
@@ -397,7 +413,7 @@ class JindLib:
 		predicted_label = predicted_label.set_index("cellname")
 
 		if return_log:
-			return predicted_label, 'Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f}'.format(pretest_acc, pred_acc, filtered)
+			return predicted_label, 'Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}'.format(pretest_acc, pred_acc, filtered, mean_f1_score, median_f1_score, weighted_f1_score)
 		return predicted_label
 
 	def plot_cfmt(self, y_pred, y_true, frac=0.05, name=None):
@@ -1082,6 +1098,7 @@ class JindLib:
 		G_decay = config.get("gdecay", 1e-2)
 		D_decay = config.get("ddecay", 1e-6)
 		max_count = config.get("maxcount", 3)
+		sigma = config.get("sigma", 0.2)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
@@ -1090,7 +1107,7 @@ class JindLib:
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
-
+# 
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
@@ -1098,6 +1115,25 @@ class JindLib:
 		count = 0
 		dry_epochs = 0
 		best_rej_frac = 1.0
+
+		# Evaluate the initialized model (avoid saving a worse model later with a higher rejection rate)
+		model2.eval()
+		self.test_model = model2
+		if test_labels is not None:
+			print("Evaluating....")
+			predictions = self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
+		
+		predictions = self.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
+		# rej_frac_mean = pd.Categorical(predictions[predictions['predictions'] == "Unassigned"]['raw_predictions'], self.classes).value_counts()
+		# frac_pred = pd.Categorical(predictions['raw_predictions'], self.classes).value_counts()
+		# rej_frac = (rej_frac_mean.to_numpy()/(frac_pred.to_numpy() + 1e-5)).mean()
+
+		rej_frac = np.mean(predictions["predictions"] == "Unassigned")
+		if rej_frac < best_rej_frac:
+			print(f"Updated Rejected cells from {best_rej_frac:.3f} to {rej_frac:.3f}")
+			best_rej_frac = rej_frac
+			torch.save(model2.state_dict(), self.path+"/best_br.pth")
+
 		for epoch in range(config['epochs']):
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
@@ -1119,6 +1155,7 @@ class JindLib:
 				for i in range(1):
 					ind = np.random.randint(0, (len(features_batch2)), bs)
 					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
+					optimizer_D.zero_grad()
 					optimizer_G.zero_grad()
 
 					batch2_code, penalty = model2.get_repr(batch2_inps)
@@ -1126,10 +1163,11 @@ class JindLib:
 					# print(np.mean(weights.numpy()))
 					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) #+ 0.001 * penalty
+					g_loss = sample_loss(disc(batch2_code + sigma * torch.randn(batch2_inps.shape[0], LDIM).to(device)), valid) #+ 0.001 * penalty
 					# g_loss = -torch.mean(disc(batch2_code))
 					if s2 > 0.4:
 						g_loss.backward()
+						# torch.nn.utils.clip_grad_value_(model2.parameters(), 0.2)
 						optimizer_G.step()
 					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
 					c2 += len(batch2_code)
@@ -1152,23 +1190,24 @@ class JindLib:
 					optimizer_D.zero_grad()
 					ind = np.random.randint(0, (len(features_batch1)), bs)
 					batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
-					batch1_code = model1.get_repr(batch1_inps)
+					batch1_code = model1.get_repr(batch1_inps) 
 					
 					# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
 					# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
+					real_loss = sample_loss(disc(batch1_code + sigma * torch.randn(batch1_inps.shape[0], LDIM).to(device)), valid[:batch1_code.size()[0]])
 
 					# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
 					# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
 					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					fake_loss = sample_loss(disc(batch2_code.detach()), fake)
+					fake_loss = sample_loss(disc(batch2_code.detach() + sigma * torch.randn(batch2_code.shape[0], LDIM).to(device)), fake)
 					# real_loss = -torch.mean(disc(batch1_code))
 					# fake_loss = torch.mean(disc(batch2_code.detach()))
 					d_loss = 0.5 * (real_loss + fake_loss)
 
 					if s2 < 0.8 or s1 > 1.0:
 						d_loss.backward()
+						# torch.nn.utils.clip_grad_norm_(disc.parameters(), 0.5)
 						optimizer_D.step()
 					# for p in disc.parameters():
 					# 	p.data.clamp_(-0.01, 0.01)
@@ -1190,6 +1229,10 @@ class JindLib:
 					predictions = self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 				
 				predictions = self.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
+
+				# rej_frac_mean = pd.Categorical(predictions[predictions['predictions'] == "Unassigned"]['raw_predictions'], self.classes).value_counts()
+				# frac_pred = pd.Categorical(predictions['raw_predictions'], self.classes).value_counts()
+				# rej_frac = (rej_frac_mean.to_numpy()/(frac_pred.to_numpy() + 1e-5)).mean()
 				rej_frac = np.mean(predictions["predictions"] == "Unassigned")
 				if rej_frac < best_rej_frac:
 					print(f"Updated Rejected cells from {best_rej_frac:.3f} to {rej_frac:.3f}")
@@ -1201,7 +1244,7 @@ class JindLib:
 					break
 			else:
 				dry_epochs += 1
-				if dry_epochs == 3:
+				if dry_epochs == max_count:
 					print("Loss not improving, stopping alignment")
 					break
 
@@ -1651,10 +1694,309 @@ class JindLib:
 		self.modelftuned = model
 		self.modelftuned.eval()
 
+
+	def get_top_predictions(self, preds, ratio=0.9):
+		pred_labels = np.argmax(preds, axis=1)
+		indices = np.arange(len(pred_labels))
+		selected_indices = [] 
+		for i in range(self.n_classes):
+			locs = pred_labels == i
+			probs_klass = preds[locs, i]
+			indices_klass = indices[locs]
+			num_cells_class = int(ratio* len(probs_klass)) + 1
+			sorted_ind = np.argsort(-probs_klass)[:num_cells_class]
+			selected_indices.append(indices_klass[sorted_ind])
+
+		final_indices = np.sort(np.concatenate(selected_indices))
+		return final_indices
+
+	
+	def ftune_joint(self, train_gene_mat, test_gene_mat, config, cmat=True):
+		features2 = self.get_features(test_gene_mat)
+		features1 = self.get_features(train_gene_mat)
+
+		y_pred = self.predict(test_gene_mat, test=True)
+
+		ind = self.get_top_predictions(y_pred, ratio=0.95)
+
+		preds = np.argmax(y_pred, axis=1)
+
+		# preds = self.filter_pred(y_pred, 0.1)
+
+		# ind = preds != self.n_classes
+
+		filtered_features = np.concatenate([features1, features2[ind]], axis=0)
+		filtered_labels = np.concatenate([self.labels, preds[ind]], axis=0)
+
+		values, counts = np.unique(filtered_labels, return_counts=True)
+
+		torch.manual_seed(config['seed'])
+		torch.cuda.manual_seed(config['seed'])
+		np.random.seed(config['seed'])
+		torch.backends.cudnn.deterministic = True
+
+		if np.min(counts) > 1:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], stratify=filtered_labels, shuffle=True, random_state=config['seed'])
+		else:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+
+		train_dataset = DataLoaderCustom(X_train, y_train)
+		val_dataset = DataLoaderCustom(X_val, y_val)
+
+
+		use_cuda = config['cuda']
+		use_cuda = use_cuda and torch.cuda.is_available()
+
+		device = torch.device("cuda" if use_cuda else "cpu")
+		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
+
+		train_loader = torch.utils.data.DataLoader(train_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=True, **kwargs)
+
+		val_loader = torch.utils.data.DataLoader(val_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=False, **kwargs)
+
+		weights, n_classes = self.get_class_weights()
+		class_weights = torch.FloatTensor(weights).to(device)
+
+		criterion = torch.nn.NLLLoss(weight=class_weights)
+
+		model1 = self.model.to(device)
+		for param in model1.parameters():
+			param.requires_grad = False
+		# Define new model
+		model_copy = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
+		# Intialize it with the same parameter values as trained model
+		# model_copy.load_state_dict(model1.state_dict())
+
+
+		# for param in model_copy.parameters():
+		# 	param.requires_grad = True
+
+		model = model_copy
+		# model = ClassifierBig(model_copy, X_train.shape[1], LDIM, GLDIM).to(device)
+
+		# model.load_state_dict(self.test_model.to(device).state_dict())
+
+
+		# for param in model.parameters():
+		# 	param.requires_grad = False
+
+		# for param in model.m1.parameters():
+		# 	param.requires_grad = True
+
+
+		optimizer = optim.Adam(model.parameters(), lr=1e-3)
+		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
+
+		logger = {'tloss': [], 'val_acc': []}
+		best_val_acc = 0.
+		for epoch in range(config['epochs']):
+			c, s = 0, 0
+			pBar = tqdm(train_loader)
+			model.train()
+			for sample in pBar:
+				x = sample['x'].to(device)
+				y = sample['y'].to(device)
+				
+				optimizer.zero_grad()
+				p = model.predict(x)
+				loss = criterion(p, y)
+				# print(loss)
+				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
+				c += len(p)
+				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
+				loss.backward()
+				optimizer.step()
+			logger['tloss'].append(s)
+			sch.step(s)
+
+			model.eval()
+			y_pred, y_true = [], []
+			with torch.no_grad():
+				for sample in val_loader:
+					x = sample['x'].to(device)
+					y = sample['y'].to(device)
+					
+					p = model.predict_proba(x)
+					y_pred.append(p.cpu().detach().numpy())
+					y_true.append(y.cpu().detach().numpy())
+			y_pred = np.concatenate(y_pred)
+			y_true = np.concatenate(y_true)
+
+			val_acc = (y_true == y_pred.argmax(axis=1)).mean()
+			logger['val_acc'].append(val_acc)
+			print("Validation Accuracy {:.4f}".format(val_acc))
+			if val_acc >= best_val_acc:
+				# print('Model improved')
+				best_val_acc = val_acc
+				torch.save(model.state_dict(), self.path+"/bestbr_ftune.pth")
+				val_stats = {'pred': y_pred, 'true': y_true}
+
+		if cmat:
+			# Plot validation confusion matrix
+			self.plot_cfmt(val_stats['pred'], val_stats['true'], 0.05, 'val_cfmtftune.pdf')
+
+		# Finally keep the best model
+		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
+		self.test_model = model
+		self.test_model.eval()
+
+
+	def ftune_top(self, test_gene_mat, config, cmat=True):
+		features = self.get_features(test_gene_mat)
+
+		y_pred = self.predict(test_gene_mat, test=True)
+
+		ind = self.get_top_predictions(y_pred, ratio=0.95)
+
+		preds = np.argmax(y_pred, axis=1)
+
+		# preds = self.filter_pred(y_pred, 0.1)
+
+		# ind = preds != self.n_classes
+
+		filtered_features = features[ind]
+		filtered_labels = preds[ind]
+
+		values, counts = np.unique(filtered_labels, return_counts=True)
+
+		torch.manual_seed(config['seed'])
+		torch.cuda.manual_seed(config['seed'])
+		np.random.seed(config['seed'])
+		torch.backends.cudnn.deterministic = True
+
+		if np.min(counts) > 1:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], stratify=filtered_labels, shuffle=True, random_state=config['seed'])
+		else:
+			X_train, X_val, y_train, y_val = train_test_split(
+				filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
+
+		train_dataset = DataLoaderCustom(X_train, y_train)
+		val_dataset = DataLoaderCustom(X_val, y_val)
+
+
+		use_cuda = config['cuda']
+		use_cuda = use_cuda and torch.cuda.is_available()
+
+		device = torch.device("cuda" if use_cuda else "cpu")
+		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
+
+		train_loader = torch.utils.data.DataLoader(train_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=True, **kwargs)
+
+		val_loader = torch.utils.data.DataLoader(val_dataset,
+										   batch_size=config['batch_size'],
+										   shuffle=False, **kwargs)
+
+		weights, n_classes = self.get_class_weights()
+		print(weights)
+		weights, n_classes = self.compute_weights(filtered_labels)
+		print(weights)
+		class_weights = torch.FloatTensor(weights).to(device)
+
+		criterion = torch.nn.NLLLoss(weight=class_weights)
+
+		model1 = self.model.to(device)
+		for param in model1.parameters():
+			param.requires_grad = False
+		# Define new model
+		model_copy = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
+		# Intialize it with the same parameter values as trained model
+		model_copy.load_state_dict(model1.state_dict())
+
+
+		for param in model_copy.parameters():
+			param.requires_grad = True
+
+		# model = model_copy
+		model = ClassifierBig(model_copy, X_train.shape[1], LDIM, GLDIM).to(device)
+
+		model.load_state_dict(self.test_model.to(device).state_dict())
+
+
+		for param in model.parameters():
+			param.requires_grad = False
+
+		for param in model.m1.fc1.parameters():
+			param.requires_grad = True
+
+		# for param in model.fc2.parameters():
+		# 	param.requires_grad = True
+
+		# for param in model.fc3.parameters():
+		# 	param.requires_grad = True
+
+
+		optimizer = optim.Adam(model.parameters(), lr=1e-4)
+		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
+
+		logger = {'tloss': [], 'val_acc': []}
+		best_val_acc = 0.
+		for epoch in range(config['epochs']):
+			c, s = 0, 0
+			pBar = tqdm(train_loader)
+			model.train()
+			for sample in pBar:
+				x = sample['x'].to(device)
+				y = sample['y'].to(device)
+				
+				optimizer.zero_grad()
+				p = model.predict(x)
+				loss = criterion(p, y)
+				# print(loss)
+				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
+				c += len(p)
+				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
+				loss.backward()
+				optimizer.step()
+			logger['tloss'].append(s)
+			sch.step(s)
+
+			model.eval()
+			y_pred, y_true = [], []
+			with torch.no_grad():
+				for sample in val_loader:
+					x = sample['x'].to(device)
+					y = sample['y'].to(device)
+					
+					p = model.predict_proba(x)
+					y_pred.append(p.cpu().detach().numpy())
+					y_true.append(y.cpu().detach().numpy())
+			y_pred = np.concatenate(y_pred)
+			y_true = np.concatenate(y_true)
+
+			val_acc = (y_true == y_pred.argmax(axis=1)).mean()
+			logger['val_acc'].append(val_acc)
+			print("Validation Accuracy {:.4f}".format(val_acc))
+			if val_acc >= best_val_acc:
+				# print('Model improved')
+				best_val_acc = val_acc
+				torch.save(model.state_dict(), self.path+"/bestbr_ftune.pth")
+				val_stats = {'pred': y_pred, 'true': y_true}
+
+		if cmat:
+			# Plot validation confusion matrix
+			self.plot_cfmt(val_stats['pred'], val_stats['true'], 0.05, 'val_cfmtftune.pdf')
+
+		# Finally keep the best model
+		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
+		self.test_model = model
+		self.test_model.eval()
+
+
+
 	def ftune(self, test_gene_mat, config, cmat=True):
 		features = self.get_features(test_gene_mat)
 
 		y_pred = self.predict(test_gene_mat, test=True)
+
 		preds = self.filter_pred(y_pred, 0.1)
 
 		ind = preds != self.n_classes

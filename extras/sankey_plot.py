@@ -22,7 +22,11 @@ def main():
 
 	if "pancreas_01" in args.file:
 		pname = "Pancreas Bar16 - Mur16"
+	elif "pancreas_raw_01" in args.file:
+		pname = "Pancreas Bar16 - Mur16"
 	elif "pancreas_02" in args.file:
+		pname = "Pancreas Bar16 - Seg16"
+	elif "pancreas_raw_02" in args.file:
 		pname = "Pancreas Bar16 - Seg16"
 	elif "human_blood_01" in args.file:
 		pname = "PBMC 10x_v3-10x_v5"
