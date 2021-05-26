@@ -342,6 +342,7 @@ if __name__ == '__main__':
     # test_mat =  test_mat.values
     type_to_label_dict = type_to_label_dict(train_labels)
     label_to_type_dict = {v: k for k, v in type_to_label_dict.items()}
+
     print("Cell Types in training set:", type_to_label_dict)
     print("# Training cells:", train_labels.shape[0])
     train_labels = convert_type_to_label(train_labels, type_to_label_dict)
@@ -353,6 +354,8 @@ if __name__ == '__main__':
     probs = probs.T
 
     max_prob = np.max(probs, axis=1)
+
+    dic2 = {i: probs[:, j] for i, j in type_to_label_dict.items()}
 
 
     # Print the probabilities
@@ -371,19 +374,31 @@ if __name__ == '__main__':
     mean_f1_score = np.mean(f1_scores)
     weighted_f1_score = metrics.f1_score(list(test_labels), predicted_label, average="weighted")
 
-    predicted_label = pd.DataFrame({"cellname":barcode, "raw_predictions": predicted_label, "labels": list(test_labels), "max_prob": list(max_prob)})
+    filt_predictions = [predicted_label[i] if max_prob[i] > 0.9 else "Unassigned" for i in range(len(predicted_label))]
+
+    dic1 = {"cellname": barcode,
+            "raw_predictions": predicted_label,
+            "predictions": filt_predictions,
+            "labels": list(test_labels)}
+
+    dic = {**dic1, **dic2}
+
+    predicted_label = pd.DataFrame(dic)
+
+    predicted_label = predicted_label.set_index("cellname")
+
+    # predicted_label = pd.DataFrame({"cellname":barcode, "raw_predictions": predicted_label, "labels": list(test_labels), "max_prob": list(max_prob)})
 
 
-    predicted_label['predictions'] = predicted_label['raw_predictions']
-    index = predicted_label['max_prob'] > 0.9
-    predicted_label.loc[~index, 'predictions'] = "Unassigned"
+    # predicted_label['predictions'] = predicted_label['raw_predictions']
+    index = predicted_label['predictions']  == "Unassigned"
+    # predicted_label.loc[~index, 'predictions'] = "Unassigned"
 
-    filtered = 1 - np.mean(index)
+    filtered = 1 - np.mean(max_prob > 0.9)
 
     raw_acc = np.mean(predicted_label['labels'] == predicted_label['raw_predictions'])
     eff = np.mean(predicted_label.loc[index, 'labels'] == predicted_label.loc[index, 'raw_predictions'])
 
-    predicted_label = predicted_label.set_index("cellname")
 
     log = "Test Acc {:.4f} Eff {:4f} Filtered {:4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}".format(raw_acc, eff, filtered, mean_f1_score, median_f1_score, weighted_f1_score)
     print(log)

@@ -10,6 +10,7 @@ import warnings
 from scipy import sparse
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
 warnings.filterwarnings("ignore")
+import pdb
 #import sys
 #!{sys.executable} -m pip install 'scanpy==1.4.4.post1'
 #Set seeds
@@ -54,11 +55,16 @@ def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path, 
 	clf.fit(adata_train, adata_test, isfloat=isfloat, filter_cells=False, filter_genes=True, logt=True)
 
 	pred, prob, celltype_pred=clf.predict(save_dir=res_path)
+	pred = pred.set_index('cell_id')
+
+	dic = {"cluster"+i: j[0] for i, j in celltype_pred.items()}
+	probabilities = prob.rename(columns=dic)
+	pred = pd.concat([probabilities, pred], axis=1)
 
 	pred['predictions'] = [celltype_pred[str(i)][0] for i in list(pred['cluster'])]
 
 	test_labels.index = [i+"-target" for i in list(test_labels.index)]
-	pred['labels'] = list(test_labels[list(pred['cell_id'])].values)
+	pred['labels'] = list(test_labels[list(pred.index)].values)
 
 	acc = np.sum(pred['predictions'] == pred['labels'])/(len(test_labels))
 	frac_pred = len(pred) * 1.0 / len(test_labels)
@@ -66,8 +72,15 @@ def train_and_evaluate(adata_train, adata_test, test_labels, isfloat, res_path, 
 	results = {'predictions': ["Unlabeled" for i in range(len(test_labels))],
 				'labels': [label for label in list(test_labels)]}
 
-	results = pd.DataFrame(results, index=test_labels.index)
-	results['predictions'].loc[pred['cell_id']] = list(pred['predictions'])
+	dic2 = {i: [-1]*len(test_labels) for i in sorted(list(set(test_labels)))}
+
+	dic = {**results, **dic2}
+
+
+	results = pd.DataFrame(dic, index=test_labels.index)
+	results['predictions'].loc[pred.index] = list(pred['predictions'])
+	for a in sorted(list(set(test_labels))):
+		results[a].loc[pred.index] = list(pred[a])
 
 	f1_scores = metrics.f1_score(results['labels'], results['predictions'], average=None)
 	median_f1_score = np.median(f1_scores)

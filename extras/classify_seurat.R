@@ -44,9 +44,9 @@ f1_score <- function(predicted, expected, positive.class="1") {
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run Seurat Classifier')
-parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_01/train.pkl", type="character",
+parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_02/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_02/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -178,8 +178,8 @@ cat(sprintf("wf1 %f \n", weighted_f1), file = file, append=TRUE)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
 
 output_path = sprintf("%s/seurat_assignment.pkl", path)
-py_save_object(as.data.frame(results), output_path)
-
+final_results = cbind(scores, results)
+py_save_object(as.data.frame(final_results), output_path)
 
 cm = data.frame(melt(cm))
 name = sprintf("Test Accuracy %f", mean(query$predicted.id == query$labels))

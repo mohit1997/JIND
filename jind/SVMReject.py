@@ -198,12 +198,20 @@ class SVMReject:
 
         predictions = [self.num2class[i] for i in preds]
         raw_predictions = [self.num2class[i] for i in np.argmax(y_pred, axis=1)]
-        predicted_label = pd.DataFrame({"cellname": test_gene_mat.index,
-                                        "raw_predictions": raw_predictions,
-                                        "predictions": predictions,
-                                        "labels": test_labels})
-        
+
+        dic1 = {"cellname": test_gene_mat.index,
+                "raw_predictions": raw_predictions,
+                "predictions": predictions,
+                "labels": test_labels}
+
+        dic2 = {self.num2class[i]: list(y_pred[:, i]) for i in range(self.n_classes)}
+
+        dic = {**dic1, **dic2}
+
+        predicted_label = pd.DataFrame(dic)
+
         predicted_label = predicted_label.set_index("cellname")
+        
         if return_log:
             return predicted_label, 'Test Acc Raw {:.4f} Eff {:.4f} Rej {:.4f} mf1 {:.4f} medf1 {:.4f} wf1 {:.4f}'.format(pretest_acc, pred_acc, filtered, mean_f1_score, median_f1_score, weighted_f1_score)
         return predicted_label

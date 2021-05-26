@@ -40,9 +40,9 @@ f1_score <- function(predicted, expected, positive.class="1") {
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run scPred')
-parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/mouse_atlas_random/train.pkl", type="character",
+parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_02_01/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/human_atlas_random/test.pkl", type="character",
+parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_02_01/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -259,6 +259,8 @@ filtered = 1 - mean(index)
 
 stopCluster(cl)
 
+
+
 pkl <- import("pickle")
 path = sprintf("%s/scPred", dirname(args$train_path))
 dir.create(path, showWarnings = FALSE)
@@ -269,6 +271,11 @@ end_time <- Sys.time()
 print(sprintf("Test raw %.4f eff %.4f rej %.4f mf1 %.4f medf1 %.4f wf1 %.4f", raw, eff, filtered, mean_f1, median_f1, weighted_f1))
 cat(sprintf("Test raw %.4f eff %.4f rej %.4f mf1 %.4f medf1 %.4f wf1 %.4f", raw, eff, filtered, mean_f1, median_f1, weighted_f1), file = file)
 cat(capture.output(end_time - start_time), file=file, append=TRUE)
+
+colnames(pred_raw) = replacestring(colnames(pred_raw), "lab.", "")
+predictions = results$predictions
+raw_predictions = results$raw_predictions
+results = cbind(pred_raw, predictions, raw_predictions)
 
 output_path = sprintf("%s/scPred_assignment.pkl", path)
 py_save_object(results, output_path)

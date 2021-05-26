@@ -28,7 +28,7 @@ def main():
 
 	data = pd.read_csv(args.file, )
 	print(data.columns)
-	data = data[['Dataset', 'JIND+', 'JIND', 'ACTINN', 'ItCluster', 'Seurat-LT']]
+	data = data[['Dataset', 'JIND+', 'JIND', 'ACTINN', 'SVM_Rej', 'ItClust', 'Seurat-LT']]
 	print(data)
 	df = data.melt('Dataset', var_name='Method',  value_name=args.metric)
 	# print(df)
@@ -58,10 +58,10 @@ def main():
 	# 	patch.set_edgecolor((0,0,0))
 
 	# Loop over the bars
-	ind = 0
+	ind = -1
 	for i,thisbar in enumerate(ax.patches):
 		# Set a different hatch for each bar
-		if i % (len(data.columns)) == 0:
+		if i % (len(data.columns) - 1) == 0:
 			ind += 1
 		thisbar.set_hatch(hatches[ind])
 
