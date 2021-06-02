@@ -120,7 +120,7 @@ color_red_green <- colorRampPalette(c('#4E62CC','#D8DBE2' , '#BA463E'))(50)
 color_red_green <- colorRampPalette(c('#cb5b4c','#D8DBE2', '#1aab2d'))(50)
 myBreaks <- c(seq(0,  0.4, length.out= 20), seq(0.41, 0.79, length.out=10), seq(0.8, 1, length.out=20))
 
-DE_train <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NULL,data_path = data_path, plots_path = plots_path){
+DE_train <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NULL,data_path = data_path, plots_path = plots_path, maxcap = 10){
   dir.create(plots_path, showWarnings = FALSE)
   print(dataSet)
   switch(dataSet,
@@ -212,7 +212,7 @@ DE_train <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NU
   
   data2heat <- data_tmp[tmp2[tmp2$adj.P.Val<0.05,'gene_name'],]
   # data2heat <- data_tmp[rownames(data_tmp) %in%  tmp[tmp$adj.P.Val<0.05 & abs(tmp$logFC)>0.5,'gene_name'],]
-  data2heat[data2heat > 5] <- 5
+  data2heat[data2heat > maxcap] <- maxcap
   
   
   colors = c(rgb(31, 119, 180, max = 255), rgb(255, 127, 14, max =255),
@@ -241,6 +241,7 @@ DE_train <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NU
   
   switch(dataSet,
          pancreas_01 = { golden_boys <- c('KRT19', 'PDX1', 'SOX9', 'UEA1', 'GP2', 'CD142', 'PRSS1', 'CTRC', 'CPA1', 'AMY2A', 'SYCN', 'RBPJL', 'MIST1', 'HNF1B', 'PTF1A', 'CA19.9', 'PARM1', 'GP2', 'CD142', 'RBPJ', 'MYC')},
+         pancreas_raw_01 = { golden_boys <- c('KRT19', 'PDX1', 'SOX9', 'UEA1', 'GP2', 'CD142', 'PRSS1', 'CTRC', 'CPA1', 'AMY2A', 'SYCN', 'RBPJL', 'MIST1', 'HNF1B', 'PTF1A', 'CA19.9', 'PARM1', 'GP2', 'CD142', 'RBPJ', 'MYC')},
          human_blood_01        = { golden_boys <- c('CD14', 'FCGR3A')}
   )
   golden_present <- tmp2[tmp2$gene_name %in% golden_boys,'gene_name']
@@ -264,11 +265,11 @@ DE_train <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NU
 data_path = "/home/mohit/mohit/seq-rna/Comparison/datasets"
 plots_path = "/home/mohit/mohit/seq-rna/Comparison/JIND_DE/Plots/MohitPlotsDE"
 
-a = DE_train('pancreas_01', 'ductal', 'acinar', 25, data_path = data_path, plots_path = plots_path)
+a = DE_train('pancreas_raw_01', 'ductal', 'acinar', 25, data_path = data_path, plots_path = plots_path)
 a = DE_train('human_blood_01', 'Monocyte_FCGR3A', 'Monocyte_CD14', 25, data_path = data_path, plots_path = plots_path)
 
 
-DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NULL,data_path = data_path, plots_path = plots_path, plottSNE=TRUE){
+DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes = NULL,data_path = data_path, plots_path = plots_path, plottSNE=TRUE, var5k=FALSE, maxcap = 10){
   dir.create(plots_path, showWarnings = FALSE)
   print(dataSet)
   switch(dataSet,
@@ -290,12 +291,12 @@ DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes 
   )
   
   df  <- pd$read_pickle(file.path(data_path, dataSet, 'test.pkl'))
-  annotation <- pd$read_pickle(file.path(data_path, dataSet, 'JIND_raw_0', 'JIND_assignmentbrftune.pkl'))
+  annotation <- pd$read_pickle(file.path(data_path, dataSet, 'JIND_rawtop_0', 'JIND_assignmentbrftune.pkl'))
   annotation$cell_names <- rownames(annotation)
   
   all_data <- t(df[, -which(colnames(df) %in% c('labels'))])
   
-  var_5k=FALSE
+  var_5k=var5k
   if (var_5k==TRUE & !dataSet %in% c('human_blood_01', 'pancreas_01', 'pancreas_02')){
     all_data <- get_topk_features(all_data, k = 5000)
   }
@@ -363,7 +364,7 @@ DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes 
   data2heat <- data_tmp[tmp2[tmp2$adj.P.Val<0.05,'gene_name'],]
   # data2heat <- data_tmp[rownames(data_tmp) %in%  tmp2[tmp2$adj.P.Val<0.05,'gene_name'],]
   
-  data2heat[data2heat > 5] <- 5
+  data2heat[data2heat > maxcap] <- maxcap
   
   colors = c(rgb(31, 119, 180, max = 255), rgb(255, 127, 14, max =255),
              rgb(44, 160, 44, max = 255), rgb(214, 39, 40, max =255),
@@ -460,7 +461,7 @@ DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes 
     cell_width = 1
     HM <- pheatmap( data2heat_small[1:genes_displ,],cluster_cols = HM$tree_col, cluster_rows = F, treeheight_row = 0, annotation_col = ann_tmp, clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean", cellwidth= cell_width, annotation_colors = anno_colors2, show_colnames = F, cellheight= 7, main = paste0('Heatmap between ',target,' classified as ',target,' (G1)\n and ',target,' classified as ',obj,' (G2)'), fontsize = 8,fontsize_row=8, callback = callback)
     plot_dims <- get_plot_dims(HM)
-    pdf(file.path(plots_path, paste0(dataSet,'_',target,'Vs',obj,'_HM_Sel.pdf')), family="Times", height = plot_dims$height, width = plot_dims$width)
+    pdf(file.path(plots_path, paste0(dataSet,'_',target,'Vs',obj,'_HM_Sel.pdf')), family="Times", height = plot_dims$height, width = 1.2 * plot_dims$width)
     # print(HM$tree_col)
     print(HM)
     dev.off()
@@ -563,8 +564,8 @@ DE_with_TSNE <- function(dataSet, target, obj, genes_displ, plot_selected_genes 
 }
 
 data_path = "/home/mohit/mohit/seq-rna/Comparison/datasets"
-plots_path = "/home/mohit/mohit/seq-rna/Comparison/JIND_DE/Plots/MohitPlotsDENew"
+plots_path = "/home/mohit/mohit/seq-rna/Comparison/JIND_DE/Plots/MohitPlotsDEJIND"
 
 a = DE_with_TSNE('pancreas_01', 'ductal', 'acinar', 25, data_path = data_path, plots_path = plots_path, plottSNE = TRUE)
-a = DE_with_TSNE('pancreas_raw_01', 'ductal', 'acinar', 25, data_path = data_path, plots_path = plots_path, plottSNE = TRUE)
-a = DE_with_TSNE('human_blood_01', 'Monocyte_FCGR3A', 'Monocyte_CD14', 25, data_path = data_path, plots_path = plots_path, plottSNE = TRUE)
+a = DE_with_TSNE('pancreas_raw_01', 'ductal', 'acinar', 25, data_path = data_path, plots_path = plots_path, plottSNE = TRUE, var5k = FALSE, maxcap = 5)
+a = DE_with_TSNE('human_blood_01', 'Monocyte_FCGR3A', 'Monocyte_CD14', 25, data_path = data_path, plots_path = plots_path, plottSNE = TRUE, var5k = FALSE, maxcap = 10)

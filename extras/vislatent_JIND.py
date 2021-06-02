@@ -17,6 +17,8 @@ parser.add_argument('--test_path', default="datasets/pancreas_abcdnovel_01/test.
 					help='path to test data frame with labels')
 parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
+parser.add_argument('--seed', type=int, default=0,
+					help='Random Seed')
 
 def main():
 	startTime = datetime.now()
@@ -36,7 +38,7 @@ def main():
 	test_mat = test_batch.drop(lname, axis=1)
 	test_labels = test_batch[lname]
 
-	path = os.path.dirname(args.train_path) + "/JIND_rawtop_0"
+	path = os.path.dirname(args.train_path) + f"/JIND_rawtop_{args.seed}"
 
 	with open('{}/JindLib_obj.pkl'.format(path), 'rb') as f:
 		obj = pickle.load(f)

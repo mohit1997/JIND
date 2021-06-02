@@ -40,9 +40,9 @@ f1_score <- function(predicted, expected, positive.class="1") {
 start_time <- Sys.time()
 
 parser <- ArgumentParser(description='Run scPred')
-parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_02_01/train.pkl", type="character",
+parser$add_argument('--train_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_01_01/train.pkl", type="character",
                     help='path to train data frame with labels')
-parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_02_01/test.pkl", type="character",
+parser$add_argument('--test_path', default="/home/mohit/mohit/seq-rna/Comparison/datasets/pancreas_raw_sintegrated_01_01/test.pkl", type="character",
                     help='path to test data frame with labels')
 parser$add_argument('--column', type="character", default='labels',
                     help='column name for cell types')
@@ -275,7 +275,8 @@ cat(capture.output(end_time - start_time), file=file, append=TRUE)
 colnames(pred_raw) = replacestring(colnames(pred_raw), "lab.", "")
 predictions = results$predictions
 raw_predictions = results$raw_predictions
-results = cbind(pred_raw, predictions, raw_predictions)
+labels = results$labels
+results = cbind(pred_raw, predictions, labels)
 
 output_path = sprintf("%s/scPred_assignment.pkl", path)
 py_save_object(results, output_path)

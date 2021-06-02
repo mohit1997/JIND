@@ -2,13 +2,14 @@ import os
 import numpy as np
 
 def main():
-	path = "datasets/pancreas_raw_02"
+	# path = "datasets/pancreas_raw_01"
+	path = "datasets/human_blood_01"
 	
-	jind = {"raw": [], "rej": [], "eff": []}
-	jindplus = {"raw": [], "rej": [], "eff": []}
+	jind = {"raw": [], "rej": [], "eff": [], "mf1": [], "medf1": [], "wf1": []}
+	jindplus = {"raw": [], "rej": [], "eff": [], "mf1": [], "medf1": [], "wf1": []}
 
 	for i in range(5):
-		filename = os.path.join(path, f"JIND_raw_{i}", "test.log")
+		filename = os.path.join(path, f"JIND_rawtop_{i}", "test.log")
 		with open(filename) as f:
 			content = f.readlines()
 		
@@ -19,12 +20,18 @@ def main():
 		jind["raw"].append(np.float(jindresults[4]))
 		jind["eff"].append(np.float(jindresults[6]))
 		jind["rej"].append(np.float(jindresults[8]))
+		jind["mf1"].append(np.float(jindresults[10]))
+		jind["medf1"].append(np.float(jindresults[12]))
+		jind["wf1"].append(np.float(jindresults[14]))
 
 		jindplusresults = lines[2].split(" ")
 
 		jindplus["raw"].append(np.float(jindplusresults[4]))
 		jindplus["eff"].append(np.float(jindplusresults[6]))
 		jindplus["rej"].append(np.float(jindplusresults[8]))
+		jindplus["mf1"].append(np.float(jindplusresults[10]))
+		jindplus["medf1"].append(np.float(jindplusresults[12]))
+		jindplus["wf1"].append(np.float(jindplusresults[14]))
 
 
 	for method in [jind, jindplus]:

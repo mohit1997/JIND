@@ -391,7 +391,7 @@ if __name__ == '__main__':
 
 
     # predicted_label['predictions'] = predicted_label['raw_predictions']
-    index = predicted_label['predictions']  == "Unassigned"
+    index = predicted_label['predictions']  != "Unassigned"
     # predicted_label.loc[~index, 'predictions'] = "Unassigned"
 
     filtered = 1 - np.mean(max_prob > 0.9)

@@ -1098,7 +1098,7 @@ class JindLib:
 		G_decay = config.get("gdecay", 1e-2)
 		D_decay = config.get("ddecay", 1e-6)
 		max_count = config.get("maxcount", 3)
-		sigma = config.get("sigma", 0.2)
+		sigma = config.get("sigma", 0.0)
 
 		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
 		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
@@ -1896,9 +1896,7 @@ class JindLib:
 										   shuffle=False, **kwargs)
 
 		weights, n_classes = self.get_class_weights()
-		print(weights)
 		weights, n_classes = self.compute_weights(filtered_labels)
-		print(weights)
 		class_weights = torch.FloatTensor(weights).to(device)
 
 		criterion = torch.nn.NLLLoss(weight=class_weights)

@@ -141,7 +141,7 @@ draw_cfmt <- function(dataSet, path = NULL, out_path = NULL){
          stop("Does Not Exist!")
   )
   
-  annotation <- pd$read_pickle(file.path(path, dataSet, 'JIND_raw_0', 'JIND_assignmentbrftune.pkl'))
+  annotation <- pd$read_pickle(file.path(path, dataSet, 'JIND_rawtop_0', 'JIND_assignmentbrftune.pkl'))
   annotation$cell_names <- rownames(annotation)
   
   annotation_seurat <- pd$read_pickle(file.path(path, dataSet, 'seurat', 'seurat_assignment.pkl'))
@@ -198,7 +198,7 @@ draw_cfmt <- function(dataSet, path = NULL, out_path = NULL){
   b_itcluster[is.na(b_itcluster)] <-0
   write.xlsx(b_seurat, file=file_xlsx, sheetName='itcluster', row.names = TRUE, append=TRUE)
   
-  name = paste0('ItCluster ', dataSet_name, '\n Eff. Accuracy: ', format(round(macc, 3), nsmall = 3))
+  name = paste0('ItClust ', dataSet_name, '\n Eff. Accuracy: ', format(round(macc, 3), nsmall = 3))
   itcluster <- create_cm(b_itcluster, name)
   
   ncells = ncol(b)
@@ -208,7 +208,7 @@ draw_cfmt <- function(dataSet, path = NULL, out_path = NULL){
   grid.arrange(grobs = list(jind, jind_raw, seurat_raw, seurat), ncol=2)
   dev.off()
   
-  pdf(file.path(out_path, paste0(dataSet, '_CMItCluster.pdf')), family="Times", height = plotsize * 2.1, width = plotsize * 2.3)
+  pdf(file.path(out_path, paste0(dataSet, '_CMItClust.pdf')), family="Times", height = plotsize * 2.1, width = plotsize * 2.3)
   grid.arrange(grobs = list(jind, jind_raw, seurat_raw, itcluster), ncol=2)
   dev.off()
   
