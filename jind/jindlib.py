@@ -1092,6 +1092,7 @@ class JindLib:
 		for param in model_copy.parameters():
 			param.requires_grad = False
 		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
+		print(device, model2.bias, model2.scale, model2.fc2)
 
 		disc = Discriminator(LDIM).to(device)
 
