@@ -1092,7 +1092,6 @@ class JindLib:
 		for param in model_copy.parameters():
 			param.requires_grad = False
 		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
-		print(device, model2.bias, model2.scale)
 
 		disc = Discriminator(LDIM).to(device)
 
@@ -1109,7 +1108,6 @@ class JindLib:
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
 # 
-		print("2.", device, model2.bias, model2.scale)
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
@@ -1118,15 +1116,16 @@ class JindLib:
 		dry_epochs = 0
 		best_rej_frac = 1.0
 
-		print("3.", device, model2.bias, model2.scale)
 		# Evaluate the initialized model (avoid saving a worse model later with a higher rejection rate)
 		model2.eval()
 		self.test_model = model2
 		if test_labels is not None:
 			print("Evaluating....")
 			predictions = self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
-		
+
 		predictions = self.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
+		self.test_model = self.test_model.to(device) # put the model on the device you want it on
+
 		# rej_frac_mean = pd.Categorical(predictions[predictions['predictions'] == "Unassigned"]['raw_predictions'], self.classes).value_counts()
 		# frac_pred = pd.Categorical(predictions['raw_predictions'], self.classes).value_counts()
 		# rej_frac = (rej_frac_mean.to_numpy()/(frac_pred.to_numpy() + 1e-5)).mean()
@@ -1137,7 +1136,6 @@ class JindLib:
 			best_rej_frac = rej_frac
 			torch.save(model2.state_dict(), self.path+"/best_br.pth")
 
-		print("4.", device, model2.bias, model2.scale)
 		for epoch in range(config['epochs']):
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
@@ -1162,7 +1160,6 @@ class JindLib:
 					optimizer_D.zero_grad()
 					optimizer_G.zero_grad()
 
-					print(use_cuda, device, batch2_inps, model2.bias)
 					batch2_code, penalty = model2.get_repr(batch2_inps)
 					# g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
