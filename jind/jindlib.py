@@ -1092,7 +1092,7 @@ class JindLib:
 		for param in model_copy.parameters():
 			param.requires_grad = False
 		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
-		print(device, model2.bias, model2.scale, model2.fc2)
+		print(device, model2.bias, model2.scale)
 
 		disc = Discriminator(LDIM).to(device)
 
@@ -1109,6 +1109,7 @@ class JindLib:
 		adversarial_loss = torch.nn.BCELoss()
 		sample_loss = torch.nn.BCELoss()
 # 
+		print("2.", device, model2.bias, model2.scale)
 
 		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
@@ -1117,6 +1118,7 @@ class JindLib:
 		dry_epochs = 0
 		best_rej_frac = 1.0
 
+		print("3.", device, model2.bias, model2.scale)
 		# Evaluate the initialized model (avoid saving a worse model later with a higher rejection rate)
 		model2.eval()
 		self.test_model = model2
@@ -1135,6 +1137,7 @@ class JindLib:
 			best_rej_frac = rej_frac
 			torch.save(model2.state_dict(), self.path+"/best_br.pth")
 
+		print("4.", device, model2.bias, model2.scale)
 		for epoch in range(config['epochs']):
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
