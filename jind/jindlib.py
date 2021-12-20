@@ -1158,7 +1158,7 @@ class JindLib:
 					optimizer_D.zero_grad()
 					optimizer_G.zero_grad()
 
-					print(use_cuda, model2.device, batch2_inp.device)
+					print(use_cuda, device, batch2_inps)
 					batch2_code, penalty = model2.get_repr(batch2_inps)
 					# g_loss = adversarial_weight(disc(batch2_code), valid)
 					# print(np.mean(weights.numpy()))
