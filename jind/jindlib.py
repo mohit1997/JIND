@@ -1325,6 +1325,7 @@ class JindLib:
 		best_rej_frac = 1.0
 		for epoch in range(config['epochs']):
 			model2 = model2.to(device) # push model on the chosen device
+			print(device, model2.bias)
 
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
