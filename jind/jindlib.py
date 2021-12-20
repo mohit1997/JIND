@@ -1137,6 +1137,8 @@ class JindLib:
 			torch.save(model2.state_dict(), self.path+"/best_br.pth")
 
 		for epoch in range(config['epochs']):
+			model2 = model2.to(device) # push model on the chosen device
+
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
 			else:
@@ -1324,8 +1326,6 @@ class JindLib:
 		count = 0
 		best_rej_frac = 1.0
 		for epoch in range(config['epochs']):
-			model2 = model2.to(device) # push model on the chosen device
-			print(device, model2.bias)
 
 			if len(batch2_loader) < 50:
 				pBar = tqdm(range(40))
