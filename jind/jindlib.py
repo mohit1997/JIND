@@ -1413,6 +1413,8 @@ class JindLib:
 					predictions = self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
 				
 				predictions = self.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
+				self.test_model = self.test_model.to(device) # push model on the chosen device
+
 				rej_frac = np.mean(predictions["predictions"] == "Unassigned")
 				if rej_frac < best_rej_frac:
 					print(f"Updated Rejected cells from {best_rej_frac:.3f} to {rej_frac:.3f}")
