@@ -142,7 +142,7 @@ predicted_label.to_csv("labels.csv")
 # JIND + (this step must be performed after batch alignment)
 train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
 				'epochs': 10}
-obj.ftune(test_gene_mat, train_config)
+obj.ftune_top(test_gene_mat, train_config)
 
 # For evaluation
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
