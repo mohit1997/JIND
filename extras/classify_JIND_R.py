@@ -18,6 +18,8 @@ parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
 parser.add_argument('--seed', type=int, default=0,
 					help='Random Seed')
+parser.add_argument('--cuda', action="store_true", default=False,
+					help='CUDA FLAG')
 
 def main():
 	torch.set_num_threads(40)
@@ -55,7 +57,7 @@ def main():
 	obj.dim_reduction(5000, 'Var')
 	# obj.normalize()
 
-	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 					'epochs': 15}
 	
 	obj.train_classifier(config=train_config, cmat=True)
@@ -64,13 +66,13 @@ def main():
 	predicted_label1, log1 = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt.pdf", return_log=True)
 
 
-	# train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	# train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 	# 				'epochs': 20}
 	
 	# obj.ftune_encoder(test_mat, train_config)
 	# predicted_label1_, log1_ = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtftuneencoder.pdf", test="modelftuned", return_log=True)
 
-	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-1, 'maxcount': 7, 'sigma': 0.0}
 
 	temp = datetime.now()
@@ -79,7 +81,7 @@ def main():
 	predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True, return_log=True)
 
 	# obj.detect_novel(train_mat, train_labels, test_mat, predicted_label2, test_labels=test_labels, test=True)
-	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 					'epochs': 10}
 	obj.ftune_top(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)
