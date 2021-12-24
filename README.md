@@ -129,7 +129,7 @@ predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="tes
 # predicted_label has three columns: cellname, raw_predictions (before rejection) and predictions (after rejection). If test_labels are provided, then labels are added as a column in the output.
 
 # For just prediction (test labels are not needed in this case)
-predicted_label  = obj.evaluate(test_gene_mat, frac=0.05, name="testcfmtbr.pdf", test=True)
+predicted_label  = obj.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
 
 # Save the predictions for downstream tasks
 predicted_label.to_csv("labels.csv")
@@ -142,7 +142,7 @@ predicted_label.to_csv("labels.csv")
 # JIND + (this step must be performed after batch alignment)
 train_config = {'val_frac': 0.1, 'seed': 0, 'batch_size': 32, 'cuda': False,
 				'epochs': 10}
-obj.ftune(test_gene_mat, train_config)
+obj.ftune_top(test_gene_mat, train_config)
 
 # For evaluation
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
