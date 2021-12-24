@@ -2,8 +2,9 @@ import os
 import numpy as np
 
 def main():
-	# path = "datasets/pancreas_raw_01"
-	path = "datasets/human_blood_01"
+	path = "datasets/pancreas_raw_01"
+	# path = "datasets/human_blood_01"
+	print(path)
 	
 	jind = {"raw": [], "rej": [], "eff": [], "mf1": [], "medf1": [], "wf1": []}
 	jindplus = {"raw": [], "rej": [], "eff": [], "mf1": [], "medf1": [], "wf1": []}
