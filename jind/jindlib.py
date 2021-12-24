@@ -125,8 +125,8 @@ class JindLib:
 			X_train, X_val, y_train, y_val = train_test_split(
 				features, labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
 
-		X_train, X_val, y_train, y_val = train_test_split(
-			features, labels, test_size=config['val_frac'], stratify=labels, shuffle=True, random_state=config['seed'])
+		# X_train, X_val, y_train, y_val = train_test_split(
+		# 	features, labels, test_size=config['val_frac'], stratify=labels, shuffle=True, random_state=config['seed'])
 
 		train_dataset = DataLoaderCustom(X_train, y_train)
 		val_dataset = DataLoaderCustom(X_val, y_val)
