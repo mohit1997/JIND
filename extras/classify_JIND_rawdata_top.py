@@ -71,7 +71,7 @@ def main():
 	# predicted_label1_, log1_ = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtftuneencoder.pdf", test="modelftuned", return_log=True)
 
 	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': False,
-					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-1, 'maxcount': 7, 'sigma': 0.0}
+					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7, 'sigma': 0.0}
 
 	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
