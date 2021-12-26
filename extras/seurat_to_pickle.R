@@ -41,6 +41,6 @@ system("source ~/mohit/torch-cpu/bin/activate")
 # system("conda activate jind")
 
 cmd = "python classify_JIND_R.py"
-system(sprintf("%s --train_path %s/train.pkl --test_path %s/test.pkl --column labels", cmd, path, path))
+system(sprintf("%s --train_path %s/train.pkl --test_path %s/test.pkl --column labels --logt", cmd, path, path))
 
 preds = pd$read_pickle(sprintf("%s/JIND_rawtop_0/JIND_assignmentbrftune.pkl", path))

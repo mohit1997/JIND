@@ -20,6 +20,8 @@ parser.add_argument('--seed', type=int, default=0,
 					help='Random Seed')
 parser.add_argument('--cuda', action="store_true", default=False,
 					help='CUDA FLAG')
+parser.add_argument('--logt', action="store_true", default=False,
+					help='Log Transformation')
 
 def main():
 	torch.set_num_threads(40)
@@ -43,16 +45,17 @@ def main():
 	path = os.path.dirname(args.train_path) + f"/JIND_rawtop_{args.seed}"
 
 	obj = JindLib(train_mat, train_labels, path=path)
-	mat = train_mat.values
-	mat_round = np.rint(mat)
-	error = np.mean(np.abs(mat - mat_round))
-	if error == 0:
-		if "human_dataset_random" in args.train_path:
-			obj.preprocess(count_normalize=True, logt=False)	
-		else:
-			obj.preprocess(count_normalize=True, logt=True)
-	# Uncomment if the data is non integer but contains counts
-	obj.preprocess(count_normalize=True, logt=True)
+	# mat = train_mat.values
+	# mat_round = np.rint(mat)
+	# error = np.mean(np.abs(mat - mat_round))
+	# if error == 0:
+	# 	if "human_dataset_random" in args.train_path:
+	# 		obj.preprocess(count_normalize=True, logt=False)	
+	# 	else:
+	# 		obj.preprocess(count_normalize=True, logt=True)
+
+	if args.logt:
+		obj.preprocess(count_normalize=True, logt=True)
 
 	obj.dim_reduction(5000, 'Var')
 	# obj.normalize()
