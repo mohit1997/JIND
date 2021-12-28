@@ -8,7 +8,7 @@
 # Prerequisites
 1. Linux or macOS
 2. [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
-3. Python 3.6 or + (tested on 3.6.8)
+3. Python 3.6 or + (tested on 3.6.8 and 3.7.11)
 4. CPU or NVIDIA GPU + CUDA CuDNN
 
 # Installation (takes 5 minutes)
