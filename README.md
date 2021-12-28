@@ -21,6 +21,10 @@ conda activate jind
 pip install -e .
 ```
 
+# Installation with Docker
+
+[Link to Docker Image](https://hub.docker.com/repository/docker/mohitgoyal1997/jind)
+
 # Examples
 
 ## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb)
