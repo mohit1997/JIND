@@ -154,10 +154,6 @@ predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="tes
 
 # Calling JIND from R
 
-### Path to python file
-[classify_JIND_R.py](./extras/classify_JIND_R.py)
-
-
 ### Activate conda environment
 ```bash
 conda activate jind
@@ -195,6 +191,10 @@ system(sprintf("%s --train_path %s/train.pkl --test_path %s/test.pkl --column la
 
 preds = pd$read_pickle(sprintf("%s/JIND_rawtop_0/JIND_assignmentbrftune.pkl", path))
 ```
+
+### Note: Path to python file used to run JIND
+Any changes to hyperparamters can be directly made in this file [classify_JIND_R.py](./extras/classify_JIND_R.py) directly.
+
 
 # Differential Expression Analysis
 The scripts to perform DE Analysis provided in the paper can be accessed [here](/JIND_DE)
