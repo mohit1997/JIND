@@ -152,5 +152,49 @@ obj.ftune_top(test_gene_mat, train_config)
 predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True)
 ```
 
+# Calling JIND from R
+
+### Activate conda environment
+```bash
+conda activate jind
+```
+
+### Calling the script from R using seurat objects
+```R
+create_files_JIND <- function(s1, s2, path){
+    source <- s1
+    source_mat = as.data.frame(t(as.matrix(source@assays$RNA@counts)))
+    cell_labels = source$celltype
+    source_mat['labels'] = cell_labels
+
+    target <- s2
+    target_mat = as.data.frame(t(as.matrix(target@assays$RNA@counts)))
+    cell_labels = target$celltype
+    target_mat['labels'] = cell_labels
+    
+    dir.create(path)
+    output_path = sprintf("%s/train.pkl", path)
+    py_save_object(as.data.frame(source_mat), output_path)
+
+    output_path = sprintf("%s/test.pkl", path)
+    py_save_object(as.data.frame(target_mat), output_path)
+}
+
+source # source seurat object
+target # target seurat object
+path = "./seurat_to_pkl"
+
+create_files_JIND(source,target, path)
+
+cmd = "python ./extras/classify_JIND_R.py"
+system(sprintf("%s --train_path %s/train.pkl --test_path %s/test.pkl --column labels --logt", cmd, path, path))
+
+preds = pd$read_pickle(sprintf("%s/JIND_rawtop_0/JIND_assignmentbrftune.pkl", path))
+```
+
+### Note: Path to python file used to run JIND
+Any changes to hyperparamters can be directly made in this file [classify_JIND_R.py](./extras/classify_JIND_R.py) directly. We also provide a [demo script](./extras/seurat_to_pickle.R) that should run in R if all the steps are followed.
+
+
 # Differential Expression Analysis
 The scripts to perform DE Analysis provided in the paper can be accessed [here](/JIND_DE)
