@@ -1,7 +1,16 @@
+library(reticulate)
+use_condaenv("jind", required=TRUE, conda="auto")
+if(!require("argparse")){
+  install.packages("argparse")
+}
+library("argparse")
+py_config()
 library(Seurat)
 library(SeuratData)
-library(reticulate)
-use_virtualenv("~/mohit/torch-cpu", required = TRUE)
+
+parser <- ArgumentParser(description='Run JIND Classifier')
+parser$add_argument('--path', default="/home/mohit/mohit/seurat_to_pkl", type="character",
+                    help='path to store pkl files')
 
 InstallData("panc8")
 pd <- import("pandas")
@@ -33,12 +42,9 @@ create_files_JIND <- function(s1, s2, path){
 # pancreas.list <- pancreas.list[c("celseq", "celseq2", "fluidigmc1", "smartseq2")]
 source <- pancreas.list$celseq
 target <- pancreas.list$celseq2
-path = "/home/mohit/mohit/seurat_to_pkl"
+path = args$path
 
 create_files_JIND(source,target, path)
-
-system("source ~/mohit/torch-cpu/bin/activate")
-# system("conda activate jind")
 
 cmd = "python classify_JIND_R.py"
 system(sprintf("%s --train_path %s/train.pkl --test_path %s/test.pkl --column labels --logt", cmd, path, path))
