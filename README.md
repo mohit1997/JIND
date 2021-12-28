@@ -193,7 +193,7 @@ preds = pd$read_pickle(sprintf("%s/JIND_rawtop_0/JIND_assignmentbrftune.pkl", pa
 ```
 
 ### Note: Path to python file used to run JIND
-Any changes to hyperparamters can be directly made in this file [classify_JIND_R.py](./extras/classify_JIND_R.py) directly.
+Any changes to hyperparamters can be directly made in this file [classify_JIND_R.py](./extras/classify_JIND_R.py) directly. We also provide a [demo script](./extras/seurat_to_pickle.R) that should run in R if all the steps are followed.
 
 
 # Differential Expression Analysis
