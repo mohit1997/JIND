@@ -154,12 +154,16 @@ predicted_label  = obj.evaluate(test_gene_mat, test_labels, frac=0.05, name="tes
 
 # Calling JIND from R
 
+### Path to python file
 [classify_JIND_R.py](./extras/classify_JIND_R.py)
 
+
+### Activate conda environment
 ```bash
 conda activate jind
 ```
 
+### Calling the script from R using seurat objects
 ```R
 create_files_JIND <- function(s1, s2, path){
     source <- s1
