@@ -16,7 +16,7 @@
 ```bash
 git clone https://github.com/mohit1997/JIND.git
 cd JIND
-conda create -n jind python=3.6.8
+conda create -n jind python=3.7
 conda activate jind
 pip install -e .
 ```
