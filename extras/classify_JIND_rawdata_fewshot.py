@@ -18,6 +18,12 @@ parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
 parser.add_argument('--seed', type=int, default=0,
 					help='Random Seed')
+parser.add_argument('--num_feats', type=int, default=5000,
+					help='Number of features that JIND uses')
+parser.add_argument('--cuda', action="store_true", default=False,
+					help='CUDA FLAG')
+parser.add_argument('--logt', action="store_true", default=False,
+					help='Log Transformation')
 
 def main():
 	torch.set_num_threads(40)
@@ -32,30 +38,31 @@ def main():
 	train_batch = train_batch[list(common_genes)]
 	test_batch = test_batch[list(common_genes)]
 
-	train_batch = train_batch.groupby(lname, group_keys=False).apply(lambda x: x.sample(min(len(x), 100)))
-
 	train_mat = train_batch.drop(lname, axis=1).fillna(0)
 	train_labels = train_batch[lname]
 
 	test_mat = test_batch.drop(lname, axis=1).fillna(0)
 	test_labels = test_batch[lname]
 
-	path = os.path.dirname(args.train_path) + f"/JIND_rawfshot_{args.seed}"
+	path = os.path.dirname(args.train_path) + f"/JIND_rawtop_{args.seed}"
 
 	obj = JindLib(train_mat, train_labels, path=path)
-	mat = train_mat.values
-	mat_round = np.rint(mat)
-	error = np.mean(np.abs(mat - mat_round))
-	if error == 0:
-		if "human_dataset_random" in args.train_path:
-			obj.preprocess(count_normalize=True, logt=False)	
-		else:
-			obj.preprocess(count_normalize=True, logt=True)
+	# mat = train_mat.values
+	# mat_round = np.rint(mat)
+	# error = np.mean(np.abs(mat - mat_round))
+	# if error == 0:
+	# 	if "human_dataset_random" in args.train_path:
+	# 		obj.preprocess(count_normalize=True, logt=False)	
+	# 	else:
+	# 		obj.preprocess(count_normalize=True, logt=True)
 
-	obj.dim_reduction(5000, 'Var')
+	if args.logt:
+		obj.preprocess(count_normalize=True, logt=True)
+
+	obj.dim_reduction(args.num_feats, 'Var')
 	# obj.normalize()
 
-	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 					'epochs': 15}
 	
 	obj.train_classifier(config=train_config, cmat=True)
@@ -64,23 +71,24 @@ def main():
 	predicted_label1, log1 = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmt.pdf", return_log=True)
 
 
-	# train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': False,
+	# train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 	# 				'epochs': 20}
 	
 	# obj.ftune_encoder(test_mat, train_config)
 	# predicted_label1_, log1_ = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtftuneencoder.pdf", test="modelftuned", return_log=True)
 
-	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': False,
-					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7}
+	train_config = {'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
+					'epochs': 15, 'gdecay': 1e-2, 'ddecay': 1e-3, 'maxcount': 7, 'sigma': 0.0}
 
 	temp = datetime.now()
 	obj.remove_effect(train_mat, test_mat, train_config, test_labels)
 	print(datetime.now()  - temp)
 	predicted_label2, log2  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbr.pdf", test=True, return_log=True)
 
-	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 32, 'cuda': False,
+	# obj.detect_novel(train_mat, train_labels, test_mat, predicted_label2, test_labels=test_labels, test=True)
+	train_config = {'val_frac': 0.1, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
 					'epochs': 10}
-	obj.ftune(test_mat, train_config)
+	obj.ftune_top(test_mat, train_config)
 	predicted_label3, log3  = obj.evaluate(test_mat, test_labels, frac=0.05, name="testcfmtbrftune.pdf", test=True, return_log=True)
 	
 	obj.to_pickle("JindLib_obj.pkl")

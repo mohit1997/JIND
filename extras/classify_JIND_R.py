@@ -18,6 +18,8 @@ parser.add_argument('--column', type=str, default='labels',
 					help='column name for cell types')
 parser.add_argument('--seed', type=int, default=0,
 					help='Random Seed')
+parser.add_argument('--num_feats', type=int, default=5000,
+					help='Number of features that JIND uses')
 parser.add_argument('--cuda', action="store_true", default=False,
 					help='CUDA FLAG')
 parser.add_argument('--logt', action="store_true", default=False,
@@ -57,7 +59,7 @@ def main():
 	if args.logt:
 		obj.preprocess(count_normalize=True, logt=True)
 
-	obj.dim_reduction(5000, 'Var')
+	obj.dim_reduction(args.num_feats, 'Var')
 	# obj.normalize()
 
 	train_config = {'val_frac': 0.2, 'seed': args.seed, 'batch_size': 128, 'cuda': args.cuda,
