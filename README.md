@@ -25,6 +25,10 @@ pip install -e .
 
 [Link to Docker Image](https://hub.docker.com/repository/docker/mohitgoyal1997/jind)
 
+```bash
+docker pull mohitgoyal1997/jind:latest
+```
+
 # Examples
 
 ## Demo Notebooks are avaliable here [PBMC Demo](/notebooks/PBMC-demo.ipynb), [PBMC Scratch](/notebooks/Process-data.ipynb)
