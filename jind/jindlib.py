@@ -168,7 +168,7 @@ class JindLib:
 				optimizer.zero_grad()
 				p = model.predict(x)
 				loss = criterion(p, y)
-				# print(loss)
+				
 				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
 				c += len(p)
 				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
@@ -208,7 +208,6 @@ class JindLib:
 		self.model = model
 		self.model.eval()
 
-			# sys.exit()
 
 	def get_class_weights(self):
 		unique, counts = np.unique(self.labels, return_counts=True)
@@ -473,9 +472,6 @@ class JindLib:
 			cm = np.delete(cm, (self.n_classes), axis=0)
 			if cm.shape[1] > (self.n_classes+1):
 				cm = np.delete(cm, (self.n_classes+1), axis=1)
-			# aps = np.zeros((len(cm), 1))
-			# aps[:self.n_classes] = np.array(compute_ap(y_true, y_pred)).reshape(-1, 1)
-			# cm = np.concatenate([cm, aps], axis=1)
 
 			class_labels = list(self.class2num.keys()) +['Novel']
 			cm_ob = ConfusionMatrixPlot(cm, class_labels)
@@ -595,7 +591,6 @@ class JindLib:
 
 
 	def clustercorrect_TSNE(self, test_gene_mat, predictions, labels=None, vis=True):
-		# embedding = self.get_TSNE(test_gene_mat.values)
 		encoding = self.get_encoding(test_gene_mat, test=True)
 		embedding = self.get_TSNE(encoding)
 		db = DBSCAN(eps=3., min_samples=2).fit(embedding)
@@ -693,9 +688,6 @@ class JindLib:
 		return df
 
 	def detect_outlier(self, train_gene_mat, train_labels, test_gene_mat, predictions, test_labels=None):
-		# encoding1 = self.get_encoding(train_gene_mat)
-
-		# encoding2 = self.get_encoding(test_gene_mat, test=False)
 		encoding1 = train_gene_mat.values
 		encoding2 = test_gene_mat.values
 		
@@ -815,8 +807,6 @@ class JindLib:
 		encoding1 = self.get_encoding(train_gene_mat)
 
 		encoding2 = self.get_encoding(test_gene_mat, test=False)
-		# encoding1 = train_gene_mat.values
-		# encoding2 = test_gene_mat.values
 
 		embedding = self.get_TSNE(np.concatenate([encoding1, encoding2], axis=0))
 
@@ -1100,8 +1090,6 @@ class JindLib:
 		max_count = config.get("maxcount", 3)
 		sigma = config.get("sigma", 0.0)
 
-		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
-		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
 		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=G_decay)
 		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=D_decay)
 		adversarial_weight = torch.nn.BCELoss(reduction='none')
@@ -1196,25 +1184,16 @@ class JindLib:
 					batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
 					batch1_code = model1.get_repr(batch1_inps) 
 					
-					# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-					# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					real_loss = sample_loss(disc(batch1_code + sigma * torch.randn(batch1_inps.shape[0], LDIM).to(device)), valid[:batch1_code.size()[0]])
-
-					# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-					# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
 					fake_loss = sample_loss(disc(batch2_code.detach() + sigma * torch.randn(batch2_code.shape[0], LDIM).to(device)), fake)
-					# real_loss = -torch.mean(disc(batch1_code))
-					# fake_loss = torch.mean(disc(batch2_code.detach()))
+					
 					d_loss = 0.5 * (real_loss + fake_loss)
 
 					if s2 < 0.8 or s1 > 1.0:
 						d_loss.backward()
 						# torch.nn.utils.clip_grad_norm_(disc.parameters(), 0.5)
 						optimizer_D.step()
-					# for p in disc.parameters():
-					# 	p.data.clamp_(-0.01, 0.01)
+					
 					s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
 					c1 += len(batch1_code)
 
@@ -1260,447 +1239,6 @@ class JindLib:
 		self.test_model = model2
 
 
-	def remove_effectv2(self, train_gene_mat, test_gene_mat, config, test_labels=None):
-		
-		features_batch1 = self.get_features(train_gene_mat)
-		features_batch2 = self.get_features(test_gene_mat)
-		
-		torch.manual_seed(config['seed'])
-		torch.cuda.manual_seed(config['seed'])
-		np.random.seed(config['seed'])
-		torch.backends.cudnn.deterministic = True
-
-		batch1_dataset = DataLoaderCustom(features_batch1)
-		batch2_dataset = DataLoaderCustom(features_batch2)
-
-		use_cuda = config['cuda']
-		use_cuda = use_cuda and torch.cuda.is_available()
-
-		device = torch.device("cuda" if use_cuda else "cpu")
-		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
-
-		batch1_loader = torch.utils.data.DataLoader(batch1_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=True, **kwargs)
-
-		batch2_loader = torch.utils.data.DataLoader(batch2_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=False, **kwargs)
-
-
-		model1 = self.model.to(device)
-		for param in model1.parameters():
-			param.requires_grad = False
-		# Define new model
-		model_copy = Classifier(features_batch1.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
-		# Intialize it with the same parameter values as trained model
-		model_copy.load_state_dict(self.model.state_dict())
-		
-		for param in model_copy.fc.parameters():
-			param.requires_grad = False
-
-		for param in model_copy.fc1.parameters():
-			param.requires_grad = False
-
-
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
-
-		disc = Discriminator(LDIM).to(device)
-
-		G_decay = config.get("gdecay", 1e-2)
-		D_decay = config.get("ddecay", 1e-6)
-		max_count = config.get("maxcount", 3)
-
-		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
-		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=G_decay)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=D_decay)
-		adversarial_weight = torch.nn.BCELoss(reduction='none')
-		adversarial_loss = torch.nn.BCELoss()
-		sample_loss = torch.nn.BCELoss()
-
-
-		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-
-		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
-		count = 0
-		best_rej_frac = 1.0
-		for epoch in range(config['epochs']):
-
-			if len(batch2_loader) < 50:
-				pBar = tqdm(range(40))
-			else:
-				pBar = tqdm(batch2_loader)
-			model1.eval()
-			model2.eval()
-			disc.train()
-			c1, s1 = 0, 0.7
-			c2, s2 = 0, 0.7
-			for sample in pBar:
-
-				valid = Variable(Tensor(bs, 1).fill_(1.0), requires_grad=False)
-				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
-
-				sample_loss = torch.nn.BCELoss()
-				disc.eval()
-				
-				for i in range(1):
-					ind = np.random.randint(0, (len(features_batch2)), bs)
-					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-					optimizer_G.zero_grad()
-
-					batch2_code, penalty = model2.get_repr(batch2_inps)
-					# g_loss = adversarial_weight(disc(batch2_code), valid)
-					# print(np.mean(weights.numpy()))
-					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) #+ 0.001 * penalty
-					# g_loss = -torch.mean(disc(batch2_code))
-					if s2 > 0.4:
-						g_loss.backward()
-						optimizer_G.step()
-					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
-					c2 += len(batch2_code)
-
-					if s2 == 0 or g_loss.item() == 0:
-						model2.reinitialize()
-						# reset count as well
-						count = 0
-
-				
-				sample_loss = torch.nn.BCELoss()
-				model2.eval()
-				disc.train()
-				for i in range(2):
-					if i != 0:
-						ind = np.random.randint(0, (len(features_batch2)), bs)
-						batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-						batch2_code, _ = model2.get_repr(batch2_inps)
-					optimizer_D.zero_grad()
-					ind = np.random.randint(0, (len(features_batch1)), bs)
-					batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
-					batch1_code = model1.get_repr(batch1_inps)
-					
-					# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-					# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
-
-					# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-					# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					fake_loss = sample_loss(disc(batch2_code.detach()), fake)
-					# real_loss = -torch.mean(disc(batch1_code))
-					# fake_loss = torch.mean(disc(batch2_code.detach()))
-					d_loss = 0.5 * (real_loss + fake_loss)
-
-					if s2 < 0.8 or s1 > 1.0:
-						d_loss.backward()
-						optimizer_D.step()
-					# for p in disc.parameters():
-					# 	p.data.clamp_(-0.01, 0.01)
-					s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
-					c1 += len(batch1_code)
-
-					if s1 == 0 or d_loss.item() == 0:
-						model2.reinitialize()
-						# reset count as well
-						count = 0
-
-				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.78) and (s2 > 0.5) and (s1 < 0.78) and (s1 > 0.5):
-				count += 1
-				self.test_model = model2
-				if test_labels is not None:
-					print("Evaluating....")
-					predictions = self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
-				
-				predictions = self.get_filtered_prediction(test_gene_mat, frac=0.05, test=True)
-
-				rej_frac = np.mean(predictions["predictions"] == "Unassigned")
-				if rej_frac < best_rej_frac:
-					print(f"Updated Rejected cells from {best_rej_frac:.3f} to {rej_frac:.3f}")
-					best_rej_frac = rej_frac
-					torch.save(model2.state_dict(), self.path+"/best_br.pth")
-				
-
-				if count >= max_count:
-					break
-
-		if not os.path.isfile(self.path+"/best_br.pth"):
-			print("Warning: Alignment did not succeed properly, try changing the gdecay or ddecay!")
-			torch.save(model2.state_dict(), self.path+"/best_br.pth")
-			
-		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
-		self.test_model = model2
-
-
-	def weighted_remove_effect(self, train_gene_mat, test_gene_mat, config, test_labels=None):
-		
-		features_batch1 = self.get_features(train_gene_mat)
-		features_batch2 = self.get_features(test_gene_mat)
-		
-		torch.manual_seed(config['seed'])
-		torch.cuda.manual_seed(config['seed'])
-		np.random.seed(config['seed'])
-		torch.backends.cudnn.deterministic = True
-
-
-		y_pred = self.predict(test_gene_mat)
-		preds = np.argmax(y_pred, axis=1)
-
-		test_prop = np.array([np.sum(preds==i) for i in range(self.n_classes)])
-		test_prop = test_prop/np.sum(test_prop)
-
-		train_labels = self.labels
-		train_prop = np.array([np.sum(train_labels==i) for i in range(self.n_classes)])
-		train_prop = train_prop/np.sum(train_prop)
-
-		factor_update = test_prop/train_prop
-		factor_update[factor_update > 0.1] = 1.
-		factor_update = factor_update * len(factor_update) / (np.sum(factor_update) + 1e-4)
-		print(factor_update, train_prop, test_prop)
-
-
-		batch1_dataset = DataLoaderCustom(features_batch1, labels=self.labels, weights=factor_update)
-		batch2_dataset = DataLoaderCustom(features_batch2)
-
-		# sys.exit()
-
-		use_cuda = config['cuda']
-		use_cuda = use_cuda and torch.cuda.is_available()
-
-		device = torch.device("cuda" if use_cuda else "cpu")
-		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
-
-		batch1_loader = torch.utils.data.DataLoader(batch1_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=True, **kwargs)
-
-		batch2_loader = torch.utils.data.DataLoader(batch2_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=False, **kwargs)
-
-
-		model1 = self.model.to(device)
-		for param in model1.parameters():
-			param.requires_grad = False
-		# Define new model
-		model_copy = Classifier(features_batch1.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
-		# Intialize it with the same parameter values as trained model
-		model_copy.load_state_dict(model1.state_dict())
-		for param in model_copy.parameters():
-			param.requires_grad = False
-		model2 = ClassifierBig(model_copy,features_batch1.shape[1], LDIM, GLDIM).to(device)
-
-		disc = Discriminator(LDIM).to(device)
-
-		# optimizer_G = torch.optim.Adam(model2.parameters(), lr=3e-4, betas=(0.5, 0.999))
-		# optimizer_D = torch.optim.Adam(disc.parameters(), lr=1e-4, betas=(0.5, 0.999))
-		optimizer_G = torch.optim.RMSprop(model2.parameters(), lr=1e-4, weight_decay=1e-2)
-		optimizer_D = torch.optim.RMSprop(disc.parameters(), lr=1e-4, weight_decay=1e-6)
-		adversarial_weight = torch.nn.BCELoss(reduction='none')
-		adversarial_loss = torch.nn.BCELoss()
-		sample_loss = torch.nn.BCELoss()
-
-
-		Tensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-
-		bs = min(config['batch_size'], len(features_batch2), len(features_batch1))
-		count = 0
-		for epoch in range(config['epochs']):
-			if len(batch2_loader) < 50:
-				pBar = tqdm(range(40))
-			else:
-				pBar = tqdm(batch2_loader)
-			model1.eval()
-			model2.eval()
-			disc.train()
-			c1, s1 = 0, 0
-			c2, s2 = 0, 0
-			for sample in pBar:
-
-				valid = Variable(Tensor(bs, 1).fill_(1.0), requires_grad=False)
-				fake = Variable(Tensor(bs, 1).fill_(0.0), requires_grad=False)
-
-				sample_loss = torch.nn.BCELoss()
-				disc.eval()
-				for i in range(1):
-					ind = np.random.randint(0, (len(features_batch2)), bs)
-					batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-					optimizer_G.zero_grad()
-
-					batch2_code, penalty = model2.get_repr(batch2_inps)
-					g_loss = adversarial_weight(disc(batch2_code), valid)
-					# print(np.mean(weights.numpy()))
-					# weights = torch.exp(g_loss.detach() - 0.8).clamp(0.9, 1.5)
-					# sample_loss = torch.nn.BCELoss(weight=weights.detach())
-					g_loss = sample_loss(disc(batch2_code), valid) #+ 0.001 * penalty
-					# g_loss = -torch.mean(disc(batch2_code))
-					g_loss.backward()
-					optimizer_G.step()
-					s2 = ((s2*c2)+(float(g_loss.item())*len(batch2_code)))/(c2+len(batch2_code))
-					c2 += len(batch2_code)
-
-				if s2 < 0.8:
-					sample_loss = torch.nn.BCELoss()
-					model2.eval()
-					disc.train()
-					for i in range(2):
-						if i != 0:
-							ind = np.random.randint(0, (len(features_batch2)), bs)
-							batch2_inps = Variable(torch.from_numpy(features_batch2[ind])).to(device).type(Tensor)
-							batch2_code, _ = model2.get_repr(batch2_inps)
-						optimizer_D.zero_grad()
-						ind = np.random.randint(0, (len(features_batch1)), bs)
-						batch1_inps = Variable(torch.from_numpy(features_batch1[ind])).to(device).type(Tensor)
-						batch1_weights = Variable(torch.from_numpy(factor_update[train_labels[ind]])).to(device).type(Tensor).reshape(-1, 1)
-						# print(factor_update[train_labels[ind]].shape, batch1_weights.shape)
-						batch1_code = model1.get_repr(batch1_inps)
-						
-						# real_loss = adversarial_weight(disc(batch1_code), valid[:batch1_code.size()[0]])
-						# weights = torch.exp(real_loss.detach() - 0.8).clamp(1., 1.2)
-						sample_loss = torch.nn.BCELoss(weight=batch1_weights.detach())
-						real_loss = sample_loss(disc(batch1_code), valid[:batch1_code.size()[0]])
-
-						# fake_loss = adversarial_weight(disc(batch2_code.detach()), fake)
-						# weights = torch.exp(fake_loss.detach() - 0.8).clamp(1., 1.2)
-						sample_loss = torch.nn.BCELoss()
-						fake_loss = sample_loss(disc(batch2_code.detach()), fake)
-						# real_loss = -torch.mean(disc(batch1_code))
-						# fake_loss = torch.mean(disc(batch2_code.detach()))
-						d_loss = 0.5 * (real_loss + fake_loss)
-
-						d_loss.backward()
-						optimizer_D.step()
-						# for p in disc.parameters():
-						# 	p.data.clamp_(-0.01, 0.01)
-						s1 = ((s1*c1)+(float(d_loss.item())*len(batch1_code)))/(c1+len(batch1_code))
-						c1 += len(batch1_code)
-
-				pBar.set_description('Epoch {} G Loss: {:.3f} D Loss: {:.3f}'.format(epoch, s2, s1))
-			if (s2 < 0.78) and (s1 < 0.78):
-				count += 1
-				self.test_model = model2
-				torch.save(model2.state_dict(), self.path+"/best_br.pth")
-				if test_labels is not None:
-					print("Evaluating....")
-					self.evaluate(test_gene_mat, test_labels, frac=0.05, name=None, test=True)
-
-				if count >= 3:
-					break
-
-		if not os.path.isfile(self.path+"/best_br.pth"):
-			torch.save(model2.state_dict(), self.path+"/best_br.pth")
-			
-		model2.load_state_dict(torch.load(self.path+"/best_br.pth"))
-		self.test_model = model2
-
-	def ftune_encoder(self, test_gene_mat, config, cmat=True):
-		features = self.get_features(test_gene_mat)
-
-		y_pred = self.predict(test_gene_mat, test=False)
-		preds = self.filter_pred(y_pred, 0.)
-
-		ind = preds != self.n_classes
-
-		filtered_features = features[ind]
-		filtered_labels = preds[ind]
-
-		torch.manual_seed(config['seed'])
-		torch.cuda.manual_seed(config['seed'])
-		np.random.seed(config['seed'])
-		torch.backends.cudnn.deterministic = True
-		X_train, X_val, y_train, y_val = train_test_split(
-			filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
-
-		train_dataset = DataLoaderCustom(X_train, y_train)
-		val_dataset = DataLoaderCustom(X_val, y_val)
-
-
-		use_cuda = config['cuda']
-		use_cuda = use_cuda and torch.cuda.is_available()
-
-		device = torch.device("cuda" if use_cuda else "cpu")
-		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
-
-		train_loader = torch.utils.data.DataLoader(train_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=True, **kwargs)
-
-		val_loader = torch.utils.data.DataLoader(val_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=False, **kwargs)
-
-		weights, n_classes = self.get_class_weights()
-		class_weights = torch.FloatTensor(weights).to(device)
-
-		criterion = torch.nn.NLLLoss(weight=class_weights)
-
-		model = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, n_classes).to(device)
-		model.load_state_dict(torch.load(self.path+"/best.pth"))
-
-		for param in model.fc.parameters():
-			param.requires_grad = False
-
-
-		optimizer = optim.Adam(model.parameters(), lr=1e-4)
-		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
-
-		logger = {'tloss': [], 'val_acc': []}
-		best_val_acc = 0.
-		for epoch in range(config['epochs']):
-			c, s = 0, 0
-			pBar = tqdm(train_loader)
-			model.train()
-			for sample in pBar:
-				x = sample['x'].to(device)
-				y = sample['y'].to(device)
-				
-				optimizer.zero_grad()
-				p = model.predict(x)
-				loss = criterion(p, y)
-				# print(loss)
-				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
-				c += len(p)
-				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
-				loss.backward()
-				optimizer.step()
-			logger['tloss'].append(s)
-			sch.step(s)
-
-			model.eval()
-			y_pred, y_true = [], []
-			with torch.no_grad():
-				for sample in val_loader:
-					x = sample['x'].to(device)
-					y = sample['y'].to(device)
-					
-					p = model.predict_proba(x)
-					y_pred.append(p.cpu().detach().numpy())
-					y_true.append(y.cpu().detach().numpy())
-			y_pred = np.concatenate(y_pred)
-			y_true = np.concatenate(y_true)
-
-			val_acc = (y_true == y_pred.argmax(axis=1)).mean()
-			logger['val_acc'].append(val_acc)
-			print("Validation Accuracy {:.4f}".format(val_acc))
-			if val_acc >= best_val_acc:
-				# print('Model improved')
-				best_val_acc = val_acc
-				torch.save(model.state_dict(), self.path+"/bestbr_ftuneencoder.pth")
-				val_stats = {'pred': y_pred, 'true': y_true}
-
-		if cmat:
-			# Plot validation confusion matrix
-			self.plot_cfmt(val_stats['pred'], val_stats['true'], 0.05, 'val_cfmtftuneencoder.pdf')
-
-		# Finally keep the best model
-		model.load_state_dict(torch.load(self.path+"/bestbr_ftuneencoder.pth"))
-		self.modelftuned = model
-		self.modelftuned.eval()
-
-
 	def get_top_predictions(self, preds, ratio=0.9):
 		pred_labels = np.argmax(preds, axis=1)
 		indices = np.arange(len(pred_labels))
@@ -1715,143 +1253,6 @@ class JindLib:
 
 		final_indices = np.sort(np.concatenate(selected_indices))
 		return final_indices
-
-	
-	def ftune_joint(self, train_gene_mat, test_gene_mat, config, cmat=True):
-		features2 = self.get_features(test_gene_mat)
-		features1 = self.get_features(train_gene_mat)
-
-		y_pred = self.predict(test_gene_mat, test=True)
-
-		ind = self.get_top_predictions(y_pred, ratio=0.95)
-
-		preds = np.argmax(y_pred, axis=1)
-
-		# preds = self.filter_pred(y_pred, 0.1)
-
-		# ind = preds != self.n_classes
-
-		filtered_features = np.concatenate([features1, features2[ind]], axis=0)
-		filtered_labels = np.concatenate([self.labels, preds[ind]], axis=0)
-
-		values, counts = np.unique(filtered_labels, return_counts=True)
-
-		torch.manual_seed(config['seed'])
-		torch.cuda.manual_seed(config['seed'])
-		np.random.seed(config['seed'])
-		torch.backends.cudnn.deterministic = True
-
-		if np.min(counts) > 1:
-			X_train, X_val, y_train, y_val = train_test_split(
-				filtered_features, filtered_labels, test_size=config['val_frac'], stratify=filtered_labels, shuffle=True, random_state=config['seed'])
-		else:
-			X_train, X_val, y_train, y_val = train_test_split(
-				filtered_features, filtered_labels, test_size=config['val_frac'], shuffle=True, random_state=config['seed'])
-
-		train_dataset = DataLoaderCustom(X_train, y_train)
-		val_dataset = DataLoaderCustom(X_val, y_val)
-
-
-		use_cuda = config['cuda']
-		use_cuda = use_cuda and torch.cuda.is_available()
-
-		device = torch.device("cuda" if use_cuda else "cpu")
-		kwargs = {'num_workers': 4, 'pin_memory': False} if use_cuda else {}
-
-		train_loader = torch.utils.data.DataLoader(train_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=True, **kwargs)
-
-		val_loader = torch.utils.data.DataLoader(val_dataset,
-										   batch_size=config['batch_size'],
-										   shuffle=False, **kwargs)
-
-		weights, n_classes = self.get_class_weights()
-		class_weights = torch.FloatTensor(weights).to(device)
-
-		criterion = torch.nn.NLLLoss(weight=class_weights)
-
-		model1 = self.model.to(device)
-		for param in model1.parameters():
-			param.requires_grad = False
-		# Define new model
-		model_copy = Classifier(X_train.shape[1], LDIM, MODEL_WIDTH, self.n_classes).to(device)
-		# Intialize it with the same parameter values as trained model
-		# model_copy.load_state_dict(model1.state_dict())
-
-
-		# for param in model_copy.parameters():
-		# 	param.requires_grad = True
-
-		model = model_copy
-		# model = ClassifierBig(model_copy, X_train.shape[1], LDIM, GLDIM).to(device)
-
-		# model.load_state_dict(self.test_model.to(device).state_dict())
-
-
-		# for param in model.parameters():
-		# 	param.requires_grad = False
-
-		# for param in model.m1.parameters():
-		# 	param.requires_grad = True
-
-
-		optimizer = optim.Adam(model.parameters(), lr=1e-3)
-		sch = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, threshold=0.05, verbose=True)
-
-		logger = {'tloss': [], 'val_acc': []}
-		best_val_acc = 0.
-		for epoch in range(config['epochs']):
-			c, s = 0, 0
-			pBar = tqdm(train_loader)
-			model.train()
-			for sample in pBar:
-				x = sample['x'].to(device)
-				y = sample['y'].to(device)
-				
-				optimizer.zero_grad()
-				p = model.predict(x)
-				loss = criterion(p, y)
-				# print(loss)
-				s = ((s*c)+(float(loss.item())*len(p)))/(c+len(p))
-				c += len(p)
-				pBar.set_description('Epoch {} Train: '.format(epoch) +str(round(float(s),4)))
-				loss.backward()
-				optimizer.step()
-			logger['tloss'].append(s)
-			sch.step(s)
-
-			model.eval()
-			y_pred, y_true = [], []
-			with torch.no_grad():
-				for sample in val_loader:
-					x = sample['x'].to(device)
-					y = sample['y'].to(device)
-					
-					p = model.predict_proba(x)
-					y_pred.append(p.cpu().detach().numpy())
-					y_true.append(y.cpu().detach().numpy())
-			y_pred = np.concatenate(y_pred)
-			y_true = np.concatenate(y_true)
-
-			val_acc = (y_true == y_pred.argmax(axis=1)).mean()
-			logger['val_acc'].append(val_acc)
-			print("Validation Accuracy {:.4f}".format(val_acc))
-			if val_acc >= best_val_acc:
-				# print('Model improved')
-				best_val_acc = val_acc
-				torch.save(model.state_dict(), self.path+"/bestbr_ftune.pth")
-				val_stats = {'pred': y_pred, 'true': y_true}
-
-		if cmat:
-			# Plot validation confusion matrix
-			self.plot_cfmt(val_stats['pred'], val_stats['true'], 0.05, 'val_cfmtftune.pdf')
-
-		# Finally keep the best model
-		model.load_state_dict(torch.load(self.path+"/bestbr_ftune.pth"))
-		self.test_model = model
-		self.test_model.eval()
-
 
 	def ftune_top(self, test_gene_mat, config, cmat=True):
 		features = self.get_features(test_gene_mat)

@@ -2,7 +2,7 @@ import setuptools
 from setuptools import setup
 
 setup(name='jind',
-	version='0.1',
+	version='1.0.2',
 	description='single cell classification method',
 	url='https://github.com/mohit1997/JIND',
 	author='Mohit Goyal',
