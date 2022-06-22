@@ -12,7 +12,7 @@ setup(name='jind',
 	install_requires=[
 			"h5py==2.10.0",
 			"matplotlib==3.2.1",
-			"numpy==1.18.4",
+			"numpy==1.22.0",
 			"pandas==1.1.5",
 			"scanpy==1.4.6",
 			"scikit-learn==0.22.2.post1",
